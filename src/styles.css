@@ -1,0 +1,1165 @@
+/*
+ * Tema chiaro: è quello di partenza e quello con cui si stampa sempre.
+ *
+ * Criterio per le tabelle fitte: un solo colore vivo (l'accento), tutto il
+ * resto grigi. La classe dell'articolo non colora più l'intera riga — su
+ * quindici colonne faceva solo confusione — ma sta in una pastiglia e in una
+ * barretta a sinistra. A scorrere aiutano invece righe alternate, evidenziazione
+ * al passaggio del mouse e riga attiva durante la digitazione.
+ */
+:root {
+  --fondo: #f6f5f2;
+  --pannello: #ffffff;
+  --testo: #1a1a18;
+  --testo-secondario: #55554e;
+  --tenue: #74746d;
+  --bordo: #e6e5e0;
+  --bordo-medio: #cfcec8;
+  --bordo-forte: #1a1a18;
+  --campo: #ffffff;
+  --bordo-campo: #b4b4ad;
+  --accento: #8a3324;
+  --accento-tenue: #f6e7e3;
+  --verde: #2f6b46;
+  --righe-alterne: #f3f3ef;
+  --riga-sotto-mouse: #eef2f6;
+  --riga-attiva: #e4eef7;
+  --evidenza: #fdf6e3;
+
+  /* pastiglie e barrette delle classi: le stesse tinte del foglio di calcolo */
+  --classe-a: #e3f0e8;
+  --classe-b: #fbf3dc;
+  --classe-c: #efefef;
+  --classe-a-forte: #4c9a72;
+  --classe-b-forte: #cfa22c;
+  --classe-c-forte: #a8a8a0;
+  --testo-classe: #1a1a18;
+
+  color-scheme: light;
+}
+
+:root[data-tema='scuro'] {
+  --fondo: #131317;
+  --pannello: #1b1b21;
+  --testo: #eceae5;
+  --testo-secondario: #c2bfb8;
+  --tenue: #97948c;
+  --bordo: #2e2e37;
+  --bordo-medio: #3f3f4a;
+  --bordo-forte: #8b8b96;
+  --campo: #24242b;
+  --bordo-campo: #4c4c58;
+  --accento: #e8917a;
+  --accento-tenue: #3a2520;
+  --verde: #74c795;
+  --righe-alterne: #23232b;
+  --riga-sotto-mouse: #26313c;
+  --riga-attiva: #2c3a49;
+  --evidenza: #332f1e;
+
+  --classe-a-forte: #4c9a72;
+  --classe-b-forte: #cfa22c;
+  --classe-c-forte: #6f6f78;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--testo);
+  font: 15px/1.5 -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 20px 60px;
+}
+
+/* --- intestazione --- */
+
+.intestazione {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 18px 0 12px;
+}
+
+.intestazione h1 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: 0.01em;
+}
+
+.sottotitolo {
+  margin: 2px 0 0;
+  color: var(--tenue);
+  font-size: 13px;
+}
+
+.comandi-intestazione {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.scelta-sede {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.scelta-sede .bottone {
+  border: 0;
+  border-radius: 0;
+  background: var(--pannello);
+}
+
+.scelta-sede .bottone + .bottone {
+  border-left: 1px solid var(--bordo-medio);
+}
+
+/* --- navigazione --- */
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--bordo-medio);
+}
+
+nav a {
+  padding: 6px 11px;
+  border-radius: 5px;
+  color: var(--testo-secondario);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+nav a:hover {
+  background: var(--riga-sotto-mouse);
+  color: var(--testo);
+}
+
+nav a.active {
+  background: var(--testo);
+  color: var(--fondo);
+  font-weight: 600;
+}
+
+.gruppo-nav {
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 1px solid var(--bordo);
+  color: var(--tenue);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gruppo-nav:first-child {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+
+main {
+  padding-top: 24px;
+}
+
+/* --- barre e bottoni --- */
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.barra h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.azioni,
+.azioni-riga,
+.frecce {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.bottone {
+  padding: 6px 12px;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 5px;
+  background: var(--pannello);
+  color: var(--testo);
+  text-decoration: none;
+  font: inherit;
+  font-size: 14px;
+}
+
+button.bottone {
+  cursor: pointer;
+}
+
+.bottone:hover:not(:disabled) {
+  border-color: var(--bordo-forte);
+}
+
+.bottone.principale {
+  border-color: var(--bordo-forte);
+  background: var(--testo);
+  color: var(--fondo);
+  font-weight: 600;
+}
+
+.bottone.piccolo {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.bottone:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.stato-salvataggio {
+  color: var(--tenue);
+  font-size: 12px;
+}
+
+/* --- campi --- */
+
+.filtri {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.ricerca {
+  flex: 1 1 320px;
+  padding: 7px 10px;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 5px;
+  background: var(--campo);
+  color: var(--testo);
+  font: inherit;
+}
+
+.spunta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--testo-secondario);
+}
+
+.giacenza,
+.giorni {
+  width: 78px;
+  padding: 4px 7px;
+  border: 1px solid var(--bordo-campo);
+  border-radius: 4px;
+  background: var(--campo);
+  color: var(--testo);
+  font: inherit;
+  font-size: 14px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.giacenza {
+  width: 94px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.giacenza:focus,
+.giorni:focus,
+.ricerca:focus,
+.scelta:focus,
+.testo-breve:focus {
+  outline: 2px solid var(--accento);
+  outline-offset: 1px;
+}
+
+.scelta,
+.testo-breve {
+  max-width: 190px;
+  padding: 3px 5px;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 4px;
+  background: var(--campo);
+  color: var(--testo);
+  font: inherit;
+  font-size: 12px;
+}
+
+.sedi-flag {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--tenue);
+}
+
+.centro {
+  text-align: center;
+}
+
+/* --- tabelle --- */
+
+.tabella-scorrevole {
+  overflow-x: auto;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 6px;
+  background: var(--pannello);
+}
+
+.tabella {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.tabella th,
+.tabella td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--bordo);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tabella thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--pannello);
+  border-bottom: 1px solid var(--bordo-forte);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tenue);
+  white-space: normal;
+  line-height: 1.25;
+  vertical-align: bottom;
+}
+
+/* righe: alternate per scorrere, evidenziate sotto il mouse e mentre si scrive */
+
+.tabella tbody tr {
+  background: var(--pannello);
+}
+
+.tabella tbody tr:nth-child(even) {
+  background: var(--righe-alterne);
+}
+
+.tabella tbody tr:hover {
+  background: var(--riga-sotto-mouse);
+}
+
+.tabella tbody tr:focus-within {
+  background: var(--riga-attiva);
+}
+
+/* il codice resta fermo mentre si scorre in orizzontale */
+
+.tabella .codice {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: inherit;
+  border-right: 1px solid var(--bordo-medio);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tabella thead th:first-child {
+  left: 0;
+  z-index: 3;
+  border-right: 1px solid var(--bordo-medio);
+}
+
+.tabella .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabella .forte {
+  font-weight: 700;
+}
+
+/* stacco fra blocchi di colonne che vanno letti insieme */
+.tabella .stacco {
+  border-left: 1px solid var(--bordo-medio);
+}
+
+.descrizione {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nota-riga {
+  max-width: 260px;
+  white-space: normal;
+  color: var(--tenue);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.secondario {
+  color: var(--testo-secondario);
+}
+
+/* --- classi degli articoli --- */
+
+.pastiglia {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 0;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--testo-classe);
+}
+
+.pastiglia.classe-A {
+  background: var(--classe-a);
+}
+
+.pastiglia.classe-B {
+  background: var(--classe-b);
+}
+
+.pastiglia.classe-C {
+  background: var(--classe-c);
+}
+
+.riga-A .codice {
+  box-shadow: inset 3px 0 0 var(--classe-a-forte);
+}
+
+.riga-B .codice {
+  box-shadow: inset 3px 0 0 var(--classe-b-forte);
+}
+
+.riga-C .codice {
+  box-shadow: inset 3px 0 0 var(--classe-c-forte);
+}
+
+/* --- stati --- */
+
+.ordina {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  background: var(--accento);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+:root[data-tema='scuro'] .ordina {
+  color: #1b1b21;
+}
+
+.ok {
+  color: var(--verde);
+  font-size: 12px;
+}
+
+.tenue {
+  color: var(--tenue);
+}
+
+.piccolo {
+  font-size: 11px;
+}
+
+.grande {
+  font-size: 15px;
+}
+
+.sale {
+  color: var(--accento);
+}
+
+.scende {
+  color: var(--verde);
+}
+
+tr.cambiata,
+tr.cambiata:nth-child(even) {
+  background: var(--evidenza);
+}
+
+.prima {
+  margin-left: 6px;
+  color: var(--tenue);
+  font-size: 11px;
+}
+
+tr.totale td {
+  border-top: 1px solid var(--bordo-forte);
+  border-bottom: 0;
+}
+
+/* --- riepiloghi e testi --- */
+
+.nota {
+  color: var(--testo-secondario);
+  font-size: 13px;
+  max-width: 900px;
+}
+
+.riepilogo {
+  margin-top: 18px;
+  font-size: 14px;
+}
+
+.legenda {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 0;
+  list-style: none;
+  color: var(--testo-secondario);
+  font-size: 13px;
+}
+
+.quadratino {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+.quadratino.classe-A {
+  background: var(--classe-a-forte);
+}
+
+.quadratino.classe-B {
+  background: var(--classe-b-forte);
+}
+
+.quadratino.classe-C {
+  background: var(--classe-c-forte);
+}
+
+.testo {
+  max-width: 700px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.testo h3 {
+  margin: 26px 0 4px;
+  font-size: 16px;
+}
+
+.pie {
+  margin-top: 40px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bordo);
+  color: var(--tenue);
+  font-size: 12px;
+}
+
+/* --- gruppi (ordine del giorno, sintesi) --- */
+
+.gruppo {
+  margin-top: 26px;
+  break-inside: avoid;
+}
+
+.gruppo h3 {
+  margin: 0 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--bordo-forte);
+  font-size: 16px;
+}
+
+.gruppo .tabella {
+  border: 1px solid var(--bordo-medio);
+  border-radius: 6px;
+  background: var(--pannello);
+}
+
+.da-altra-sede h3 {
+  border-bottom-color: var(--accento);
+  color: var(--accento);
+}
+
+.candidati {
+  margin-bottom: 18px;
+  border-color: var(--accento);
+}
+
+.testata-stampa,
+.firma-stampa {
+  display: none;
+}
+
+/* --- modulo cartaceo di rilevazione --- */
+
+.modulo {
+  max-width: 880px;
+  margin: 16px auto 0;
+  padding: 22px 26px 30px;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 6px;
+  background: var(--pannello);
+}
+
+.testata-modulo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--bordo-forte);
+}
+
+.testata-modulo h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.testata-modulo p {
+  margin: 3px 0 0;
+  color: var(--tenue);
+  font-size: 12px;
+}
+
+.campi-testata {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  text-align: right;
+}
+
+.gruppo-modulo {
+  margin-top: 18px;
+}
+
+.gruppo-modulo h3 {
+  margin: 0 0 4px;
+  padding: 3px 6px;
+  background: var(--testo);
+  color: var(--fondo);
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  break-after: avoid;
+}
+
+.gruppo-modulo h3 .tenue {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.tabella-modulo {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabella-modulo th {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--bordo-forte);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tenue);
+  text-align: left;
+}
+
+.tabella-modulo td {
+  height: 30px;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--bordo);
+}
+
+.tabella-modulo tbody tr:nth-child(even) td {
+  background: var(--righe-alterne);
+}
+
+.tabella-modulo .col-codice {
+  width: 110px;
+}
+
+.tabella-modulo .col-um {
+  width: 42px;
+  text-align: center;
+}
+
+.tabella-modulo .col-livello {
+  width: 80px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabella-modulo .col-giacenza {
+  width: 130px;
+  border-left: 1px solid var(--bordo-forte);
+  border-right: 1px solid var(--bordo-forte);
+  background: var(--pannello) !important;
+}
+
+.tabella-modulo .col-spunta {
+  width: 34px;
+  text-align: center;
+}
+
+.tabella-modulo tbody .col-spunta {
+  border-right: 1px solid var(--bordo-forte);
+}
+
+.firma-modulo {
+  margin-top: 22px;
+  font-size: 12px;
+}
+
+/* --- stampa: sempre chiara, colore di classe sull'intera riga come sul foglio --- */
+
+@page {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+@page modulo {
+  size: A4 portrait;
+  margin: 11mm 12mm 12mm;
+}
+
+.pagina-modulo {
+  page: modulo;
+}
+
+@media print {
+  :root,
+  :root[data-tema='scuro'] {
+    --fondo: #ffffff;
+    --pannello: #ffffff;
+    --testo: #000000;
+    --testo-secondario: #333333;
+    --tenue: #444444;
+    --bordo: #bbbbbb;
+    --bordo-medio: #999999;
+    --bordo-forte: #000000;
+    --campo: #ffffff;
+    --righe-alterne: #ffffff;
+    --classe-a: #e3f0e8;
+    --classe-b: #fbf3dc;
+    --classe-c: #efefef;
+    --testo-classe: #000000;
+    color-scheme: light;
+  }
+
+  /* chiesto a Chrome di stampare i colori delle classi; se l'utente li
+     disattiva, le regole qui sotto tengono comunque tutto leggibile */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .schermo,
+  .azioni,
+  .frecce,
+  .azioni-riga {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 10pt;
+  }
+
+  .app {
+    max-width: none;
+    padding: 0;
+  }
+
+  .testata-stampa {
+    display: block;
+    margin-bottom: 8px;
+    border-bottom: 2px solid #000;
+  }
+
+  .testata-stampa h2 {
+    margin: 0;
+    font-size: 14pt;
+  }
+
+  .testata-stampa p {
+    margin: 2px 0 6px;
+    font-size: 9pt;
+  }
+
+  .firma-stampa {
+    display: block;
+    margin-top: 24px;
+    font-size: 9pt;
+  }
+
+  .tabella-scorrevole {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tabella {
+    font-size: 8.5pt;
+  }
+
+  .tabella th,
+  .tabella td {
+    padding: 3px 5px;
+  }
+
+  .tabella thead th,
+  .tabella .codice {
+    position: static;
+  }
+
+  .tabella tbody tr,
+  .tabella tbody tr:nth-child(even) {
+    background: transparent;
+  }
+
+  .tabella tr {
+    break-inside: avoid;
+  }
+
+  /* sulla carta la tinta di classe torna sull'intera riga, come sul foglio */
+  .riga-A {
+    background: var(--classe-a) !important;
+  }
+
+  .riga-B {
+    background: var(--classe-b) !important;
+  }
+
+  .riga-C {
+    background: var(--classe-c) !important;
+  }
+
+  .riga-A .codice,
+  .riga-B .codice,
+  .riga-C .codice {
+    box-shadow: none;
+  }
+
+  .pastiglia {
+    background: transparent !important;
+    padding: 0;
+  }
+
+  .quadratino {
+    border: 1pt solid #000;
+  }
+
+  .nota,
+  .legenda {
+    font-size: 8pt;
+  }
+
+  .gruppo-modulo h3,
+  .gruppo h3 {
+    padding: 0 0 2px;
+    background: transparent !important;
+    color: #000 !important;
+    border-bottom: 1.2pt solid #000;
+  }
+
+  .modulo {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tabella-modulo {
+    font-size: 10pt;
+  }
+
+  .tabella-modulo td {
+    height: 9mm;
+    border-bottom: 0.5pt solid #999;
+  }
+
+  .tabella-modulo tbody tr:nth-child(even) td {
+    background: transparent;
+  }
+
+  .tabella-modulo .col-giacenza {
+    border-left: 1pt solid #000;
+    border-right: 1pt solid #000;
+  }
+
+  .tabella-modulo tbody .col-spunta {
+    border-right: 1pt solid #000;
+  }
+
+  .tabella-modulo thead {
+    display: table-header-group;
+  }
+
+  .tabella-modulo tr {
+    break-inside: avoid;
+  }
+
+  .gruppo-modulo.pagina-nuova {
+    break-before: page;
+  }
+
+  .gruppo-modulo.pagina-nuova:first-of-type {
+    break-before: auto;
+  }
+
+  .ordina {
+    padding: 0;
+    background: transparent !important;
+    color: #000 !important;
+    font-weight: 700;
+  }
+}
+
+/* --- ordine del giorno: una tabella sola, fornitori come righe di stacco --- */
+
+.riepilogo-ordine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 30px;
+  margin: 14px 0 18px;
+  padding: 12px 18px;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 6px;
+  background: var(--pannello);
+}
+
+.riepilogo-ordine .dato {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.riepilogo-ordine .numero {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.riepilogo-ordine .etichetta {
+  color: var(--tenue);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tabella-ordine {
+  table-layout: fixed;
+  min-width: 1260px;
+}
+
+.tabella-ordine .c-codice {
+  width: 108px;
+}
+
+.tabella-ordine .c-um {
+  width: 46px;
+}
+
+.tabella-ordine .c-num {
+  width: 92px;
+}
+
+.tabella-ordine .c-quantita {
+  width: 110px;
+}
+
+.tabella-ordine .c-colli {
+  width: 132px;
+}
+
+.tabella-ordine .c-nota {
+  width: 196px;
+}
+
+.tabella-ordine .descrizione {
+  max-width: none;
+}
+
+.tabella-ordine .nota-riga {
+  max-width: none;
+}
+
+.tabella tbody tr.riga-gruppo,
+.tabella tbody tr.riga-gruppo:hover {
+  background: var(--fondo);
+}
+
+.riga-gruppo th {
+  position: static;
+  padding: 11px 0 7px;
+  border-top: 1px solid var(--bordo-forte);
+  border-bottom: 1px solid var(--bordo-medio);
+  background: var(--fondo);
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+  break-after: avoid;
+}
+
+/* il nome del fornitore resta in vista anche scorrendo in orizzontale */
+.contenuto-gruppo {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  padding: 0 10px;
+}
+
+.riga-gruppo .nome-gruppo {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--testo);
+}
+
+.riga-gruppo .dettaglio-gruppo {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--tenue);
+}
+
+.riga-gruppo.interno .nome-gruppo {
+  color: var(--accento);
+}
+
+.tabella .colli {
+  font-weight: 600;
+  color: var(--testo);
+}
+
+@media print {
+  .riepilogo-ordine {
+    gap: 22px;
+    margin: 6px 0 10px;
+    padding: 6px 10px;
+    border: 1px solid #000;
+    border-radius: 0;
+  }
+
+  .riepilogo-ordine .numero {
+    font-size: 14pt;
+  }
+
+  .tabella-ordine {
+    min-width: 0;
+  }
+
+  .tabella-ordine thead {
+    display: table-header-group;
+  }
+
+  .riga-gruppo th {
+    padding: 8px 0 3px;
+    border-top: 1pt solid #000;
+    background: transparent !important;
+  }
+
+  /* il nome del fornitore resta in vista anche scorrendo in orizzontale */
+.contenuto-gruppo {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  padding: 0 10px;
+}
+
+.riga-gruppo .nome-gruppo {
+    font-size: 11pt;
+  }
+}
+
+/* --- giacenza dell'altra sede e decisione di trasferimento --- */
+
+.tabella-ordine .c-altra {
+  width: 150px;
+}
+
+.tabella-ordine .c-trasferisci {
+  width: 84px;
+}
+
+.altra-sede {
+  line-height: 1.25;
+}
+
+.altra-sede .piccolo {
+  white-space: normal;
+}
+
+.col-trasferisci input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.col-trasferisci input:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+@media print {
+  /*
+   * Sulla carta la decisione è già nei due blocchi, quindi la spunta sparisce.
+   * Con table-layout fixed non si può però togliere la cella con display:none:
+   * le colonne dopo slitterebbero. Si azzera invece la larghezza.
+   */
+  .tabella-ordine .c-trasferisci {
+    width: 0;
+  }
+
+  .col-trasferisci {
+    padding: 0;
+    font-size: 0;
+    overflow: hidden;
+  }
+
+  .col-trasferisci input {
+    display: none;
+  }
+}
