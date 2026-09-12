@@ -10,6 +10,7 @@ import {
 import type { User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { COLL, auth, db } from './firebase';
+import { eAmministratore, riconosciuto } from './ruoli';
 import type { Utente } from '../types';
 
 interface StatoAccesso {
@@ -64,25 +65,39 @@ export function ProviderAccesso({ children }: { children: ReactNode }) {
 }
 
 /**
- * Legge il profilo, e se non c'e' lo crea come operatore senza sede.
+ * Il profilo dell'utente collegato.
  *
- * Nessuno puo' farsi amministratore da solo: il primo admin si promuove a mano
- * dalla console Firebase, cambiando "ruolo" in "admin" sul proprio documento.
- * Da li' in poi e' l'admin ad assegnare ruoli e sedi agli altri.
+ * Il ruolo NON viene dal documento: viene dagli elenchi di UID, gli stessi
+ * delle regole Firestore. Cosi' non esiste il caso in cui il documento dice
+ * una cosa e il database ne concede un'altra, e nessuno resta chiuso fuori
+ * per un campo sbagliato. Il documento serve solo a tenere il nome per esteso
+ * e la sede abituale, ed e' un di piu': se non c'e' o non si legge, l'app
+ * funziona lo stesso.
  */
 async function leggiProfilo(u: User): Promise<Utente> {
-  const riferimento = doc(db, COLL.utenti, u.uid);
-  const istantanea = await getDoc(riferimento);
-  if (istantanea.exists()) return istantanea.data() as Utente;
-
-  const nuovo: Utente = {
-    nome: u.displayName ?? (u.email ?? '').split('@')[0],
-    email: u.email ?? '',
-    ruolo: 'operatore',
+  const ruolo = eAmministratore(u.uid) ? 'admin' : 'operatore';
+  const email = u.email ?? '';
+  const base: Utente = {
+    nome: u.displayName ?? email.split('@')[0],
+    email,
+    ruolo,
     sede: null,
   };
-  await setDoc(riferimento, nuovo);
-  return nuovo;
+
+  try {
+    const riferimento = doc(db, COLL.utenti, u.uid);
+    const istantanea = await getDoc(riferimento);
+    if (istantanea.exists()) {
+      const salvato = istantanea.data() as Partial<Utente>;
+      // nome e sede si prendono dal documento, il ruolo no: quello e' dell'elenco
+      return { ...base, nome: salvato.nome || base.nome, sede: salvato.sede ?? null };
+    }
+    if (riconosciuto(u.uid)) await setDoc(riferimento, base);
+  } catch {
+    /* il documento e' un di piu': senza, si lavora con i valori ricavati dall'account */
+  }
+
+  return base;
 }
 
 export function useAccesso(): StatoAccesso {

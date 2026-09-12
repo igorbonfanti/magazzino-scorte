@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { collection, deleteDoc, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import { COLL, db } from '../lib/firebase';
+import { eAmministratore, eMagazziniere } from '../lib/ruoli';
 import { NOMI_SEDI, SEDI } from '../seed';
 import { useScorte } from '../store';
-import type { Ruolo, Sede, Utente } from '../types';
+import type { Sede, Utente } from '../types';
 
 interface Riga extends Utente {
   uid: string;
@@ -12,10 +13,12 @@ interface Riga extends Utente {
 /**
  * Chi puo' entrare, con che ruolo e in quale sede.
  *
- * L'elenco degli account sta in Firebase Authentication e da qui non si vede:
- * il browser non puo' interrogarlo, serve la console. Qui si gestisce l'altra
- * meta', cioe' il profilo: preso l'UID dalla console si assegnano nome, ruolo
- * e sede. Senza profilo l'utente entra ma non vede niente.
+ * Il ruolo non si decide qui: viene dagli elenchi di UID, che stanno sia in
+ * src/lib/ruoli.ts sia in firestore.rules. Aggiungere una persona vuol dire
+ * toccare quei due file e ripubblicare le regole — di proposito, perche' il
+ * permesso vero lo da' il database, non una tendina.
+ *
+ * Qui si tiene solo il contorno: il nome per esteso e la sede abituale.
  */
 export default function Utenti() {
   const s = useScorte();
@@ -26,7 +29,6 @@ export default function Utenti() {
   const [uid, setUid] = useState('');
   const [email, setEmail] = useState('');
   const [nome, setNome] = useState('');
-  const [ruolo, setRuolo] = useState<Ruolo>('operatore');
   const [sede, setSede] = useState<Sede | ''>('');
 
   const amministratore = s.profilo?.ruolo === 'admin';
@@ -63,15 +65,14 @@ export default function Utenti() {
       const profilo: Utente = {
         nome: nome.trim() || email.trim().split('@')[0],
         email: email.trim(),
-        ruolo,
-        sede: ruolo === 'admin' ? null : sede === '' ? null : sede,
+        ruolo: eAmministratore(pulito) ? 'admin' : 'operatore',
+        sede: sede === '' ? null : sede,
       };
       await setDoc(doc(db, COLL.utenti, pulito), profilo);
       setUid('');
       setEmail('');
       setNome('');
       setSede('');
-      setRuolo('operatore');
       await ricarica();
     } catch (err) {
       setErrore((err as Error).message);
@@ -116,9 +117,9 @@ export default function Utenti() {
       </div>
 
       <p className="nota">
-        L&rsquo;account con email e password si crea nella console Firebase, in <em>Authentication</em>. Qui si assegna
-        cosa può fare: copia l&rsquo;UID dalla console e aggiungilo. Un utente senza profilo entra ma non vede niente;
-        un operatore senza sede nemmeno.
+        L&rsquo;account con email e password si crea nella console Firebase, in <em>Authentication</em>. Cosa può fare
+        dipende dagli elenchi di UID in <code>src/lib/ruoli.ts</code> e in <code>firestore.rules</code>, non da questa
+        pagina: qui si tengono solo il nome per esteso e la sede abituale.
       </p>
 
       {errore && <p className="accesso-errore">{errore}</p>}
@@ -140,14 +141,11 @@ export default function Utenti() {
           </label>
           <label>
             Ruolo
-            <select value={ruolo} onChange={(e) => setRuolo(e.target.value as Ruolo)}>
-              <option value="operatore">operatore</option>
-              <option value="admin">amministratore</option>
-            </select>
+            <input value={descriviRuolo(uid)} readOnly title="Deciso dagli elenchi di UID, non da qui" />
           </label>
           <label>
             Sede
-            <select value={sede} onChange={(e) => setSede(e.target.value as Sede | '')} disabled={ruolo === 'admin'}>
+            <select value={sede} onChange={(e) => setSede(e.target.value as Sede | '')}>
               <option value="">nessuna</option>
               {SEDI.map((q) => (
                 <option key={q} value={q}>
@@ -193,16 +191,7 @@ export default function Utenti() {
               <tr key={r.uid}>
                 <td>{r.email}</td>
                 <td>{r.nome}</td>
-                <td>
-                  <select
-                    className="scelta"
-                    value={r.ruolo}
-                    onChange={(e) => void cambia(r, { ruolo: e.target.value as Ruolo })}
-                  >
-                    <option value="operatore">operatore</option>
-                    <option value="admin">amministratore</option>
-                  </select>
-                </td>
+                <td>{descriviRuolo(r.uid)}</td>
                 <td>
                   <select
                     className="scelta"
@@ -216,7 +205,7 @@ export default function Utenti() {
                       </option>
                     ))}
                   </select>
-                  {r.ruolo === 'operatore' && !r.sede && <span className="prima">senza sede non vede niente</span>}
+                  {eMagazziniere(r.uid) && !r.sede && <span className="prima">sceglie lui la sede contando</span>}
                 </td>
                 <td className="codice piccolo">{r.uid}</td>
                 <td>
@@ -231,4 +220,13 @@ export default function Utenti() {
       </div>
     </section>
   );
+}
+
+/** Da dove viene il ruolo: dagli elenchi di UID, non da un campo modificabile. */
+function descriviRuolo(uid: string): string {
+  const pulito = uid.trim();
+  if (!pulito) return '—';
+  if (eAmministratore(pulito)) return 'accesso completo';
+  if (eMagazziniere(pulito)) return 'solo conteggio';
+  return 'non riconosciuto';
 }
