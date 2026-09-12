@@ -1335,31 +1335,62 @@ tr.totale td {
 /* gli sfusi */
 
 .conta-sfusi {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
   width: 100%;
   margin-top: 16px;
-  padding: 10px 14px;
-  border: 1px solid var(--bordo-medio);
-  border-radius: 10px;
-  background: var(--pannello);
+}
+
+.etichetta-sfusi {
+  display: block;
+  margin-bottom: 6px;
   color: var(--testo-secondario);
   font-size: 15px;
 }
 
-.conta-sfusi input {
-  width: 110px;
-  padding: 8px 10px;
+/* meno / numero / piu': per pochi pezzi si batte, non si digita */
+.conta-passo {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.tasto-passo {
+  width: 76px;
+  min-height: 66px;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 10px;
+  background: var(--pannello);
+  color: var(--testo);
+  font-size: 32px;
+  line-height: 1;
+}
+
+.tasto-passo.piu {
+  border-color: var(--bordo-forte);
+  background: var(--testo);
+  color: var(--fondo);
+  font-weight: 700;
+}
+
+.tasto-passo:active {
+  transform: scale(0.97);
+}
+
+.tasto-passo:disabled {
+  opacity: 0.35;
+}
+
+.conta-passo input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
   border: 1px solid var(--bordo-campo);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--campo);
   color: var(--testo);
   /* almeno 16px o iPhone ingrandisce la pagina al tocco */
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 700;
-  text-align: right;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1487,6 +1518,25 @@ tr.totale td {
 
 .conta-gruppi .quanti.finito {
   color: var(--verde);
+}
+
+/* la scelta della sede: primo gesto, tasti piu' alti degli altri */
+.scelta-sede-grossa {
+  flex-direction: column;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  min-height: 88px !important;
+}
+
+.scelta-sede-grossa .nome {
+  font-size: 21px !important;
+}
+
+.conta-nota-scelta {
+  margin: -8px 0 18px;
+  color: var(--tenue);
+  font-size: 14px;
 }
 
 .conta-gruppi button:disabled {
