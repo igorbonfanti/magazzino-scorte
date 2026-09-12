@@ -13,6 +13,13 @@ export interface Articolo {
   lotto_nota: string;
   /** reparto di magazzino, per l'ordine del giro di conteggio */
   tipologia: string;
+  /**
+   * Quanti pezzi stanno in un collo, contando a magazzino. Di norma coincide
+   * con il lotto minimo (bancale da 30 sacchi: si ordina e si conta a bancali),
+   * ma non sempre: RETEPVC150 si ordina a 500 mq e si conta a rotoli.
+   * 0 = nessun collo, si contano solo i pezzi.
+   */
+  pezzi_per_collo: number;
 }
 
 export interface Statistica {
@@ -55,6 +62,13 @@ export interface Parametri {
 
 export type StatoRilevazione = 'bozza' | 'chiusa';
 
+export interface DettaglioConteggio {
+  colli: number;
+  sfusi: number;
+  /** quanti pezzi valeva un collo quando si e' contato */
+  pezziPerCollo: number;
+}
+
 export interface Rilevazione {
   id: string;
   sede: Sede;
@@ -62,7 +76,12 @@ export interface Rilevazione {
   operatore_uid: string;
   operatore_nome: string;
   stato: StatoRilevazione;
+  /** giacenza contata, per codice */
   righe: Record<string, number>;
+  /** come si e' arrivati a quel numero: serve a ricontrollare un conteggio */
+  dettaglio?: Record<string, DettaglioConteggio>;
+  /** articoli messi da parte durante il giro, da riprendere alla fine */
+  saltati?: string[];
   /**
    * Decisione presa per questo conteggio: prendere la merce dall'altra sede
    * invece di ordinarla. Vale solo per questa rilevazione e ha la precedenza

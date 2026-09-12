@@ -1,4 +1,4 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Prontuario from './pages/Prontuario';
 import Rilevazione from './pages/Rilevazione';
 import OrdineDelGiorno from './pages/OrdineDelGiorno';
@@ -10,6 +10,7 @@ import Variazioni from './pages/Variazioni';
 import Sintesi from './pages/Sintesi';
 import Storico from './pages/Storico';
 import Aiuto from './pages/Aiuto';
+import Conta from './pages/Conta';
 import { useTema } from './lib/tema';
 import { NOMI_SEDI, SEDI, seed } from './seed';
 import { useScorte } from './store';
@@ -17,6 +18,11 @@ import { useScorte } from './store';
 export default function App() {
   const s = useScorte();
   const [tema, cambiaTema] = useTema();
+  const posizione = useLocation();
+
+  // Il conteggio a magazzino si apre a tutto schermo, senza menu: chi conta
+  // tiene il telefono in mano e deve vedere solo l'articolo.
+  if (posizione.pathname === '/conta') return <Conta />;
 
   return (
     <div className="app">
@@ -70,6 +76,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/rilevazione" replace />} />
           <Route path="/rilevazione" element={<Rilevazione />} />
+          <Route path="/conta" element={<Conta />} />
           <Route path="/modulo" element={<ModuloRilevazione />} />
           <Route path="/ordine" element={<OrdineDelGiorno />} />
           <Route path="/prontuario" element={<Prontuario />} />

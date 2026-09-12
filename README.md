@@ -9,6 +9,7 @@ contano le giacenze dal loro PC e l'ordine del giorno si compila da solo.
 
 | Pagina | A cosa serve |
 |---|---|
+| **Conteggio** (`#/conta`) | Schermata a tutto schermo per il telefono di chi conta: un articolo alla volta, un tasto grande che batte un collo intero, gli sfusi a parte. Conteggio alla cieca, con contatore di quanti ne mancano. |
 | **Rilevazione** | I 75 articoli sorvegliati: si scrive la giacenza contata e si vede subito cosa ordinare. Con Invio si passa alla riga sotto, la bozza si salva da sola. |
 | **Modulo da stampare** | Il foglio cartaceo per chi conta in magazzino, raggruppato per tipologia di materiale o per fornitore. |
 | **Ordine del giorno** | Le righe da ordinare, divise per fornitore, con quantità, colli e giorni di consegna. Stampa A4 ed esportazione CSV. |
@@ -62,7 +63,7 @@ fase successiva, senza toccare le pagine.
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # 27 test: motore, importi, colli, ordine del giorno
+npm test         # 42 test: motore, importi, colli, ordine del giorno, conteggio
 npm run build
 ```
 

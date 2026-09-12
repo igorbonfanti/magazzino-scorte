@@ -82,6 +82,9 @@ export default function Rilevazione() {
           <button className="bottone" onClick={() => caricaProva(aperta.id)}>
             Giacenze di prova
           </button>
+          <Link className="bottone" to="/conta">
+            Conta dal telefono
+          </Link>
           <Link className="bottone" to="/ordine">
             Ordine del giorno
           </Link>

@@ -63,3 +63,30 @@ export function contaColli(daOrdinare: number, lottoMinimo: number, lottoNota: s
 
   return { quanti, testo: `${quanti} × ${lottoMinimo}` };
 }
+
+export interface Collo {
+  /** come si chiama il contenitore: "bancale", "fascio"... null se non ne ha uno */
+  nome: string | null;
+  /** cosa c'e' dentro: "sacchi", "rotoli"... null se la nota non lo dice */
+  unita: string | null;
+}
+
+/**
+ * Legge la nota del lotto per capire come si chiama il collo e cosa contiene.
+ * Serve alle etichette del conteggio a magazzino: "1 bancale (30)".
+ */
+export function descriviCollo(lottoNota: string): Collo {
+  const nota = (lottoNota ?? '').trim().toLowerCase();
+  if (!nota) return { nome: null, unita: null };
+
+  const contenitore = /^([a-zàèéìòù]+)/.exec(nota)?.[1];
+  if (contenitore && PLURALI[contenitore]) {
+    // "bancale da 30 sacchi", "cartone 18 rotoli + 18 in omaggio"
+    const dentro = /\d+\s+([a-zàèéìòù]+)/.exec(nota)?.[1] ?? null;
+    return { nome: contenitore, unita: dentro };
+  }
+
+  // "40 rotoli", "6 bombole": nessun contenitore, ma sappiamo cosa si conta
+  const sciolto = /^\d+\s+([a-zàèéìòù]+)/.exec(nota)?.[1];
+  return { nome: null, unita: sciolto ?? null };
+}

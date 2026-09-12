@@ -32,7 +32,7 @@ export interface SeedFile {
     fornitore_default: string;
   };
   tempi_consegna: TempoConsegna[];
-  articoli: Omit<Articolo, 'tipologia'>[];
+  articoli: Omit<Articolo, 'tipologia' | 'pezzi_per_collo'>[];
   sedi: Record<Sede, { nome: string; articoli: Record<string, StatisticaSeed> }>;
   elenco_sorvegliato: string[];
   esclusi: string[];
@@ -58,7 +58,11 @@ export function tempiDaSeed(): TempiMap {
 
 export function articoliDaSeed(): Record<string, Articolo> {
   const out: Record<string, Articolo> = {};
-  for (const a of seed.articoli) out[a.codice] = { ...a, tipologia: tipologiaPredefinita(a) };
+  for (const a of seed.articoli) {
+    // contando, di norma un collo vale un lotto minimo: dove non torna si
+    // corregge a mano in "Articoli e lotti"
+    out[a.codice] = { ...a, tipologia: tipologiaPredefinita(a), pezzi_per_collo: a.lotto_minimo };
+  }
   return out;
 }
 

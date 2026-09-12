@@ -70,6 +70,7 @@ export default function Articoli() {
               <th className="campo">Fornitore</th>
               <th className="num">Consegna</th>
               <th className="num campo">Lotto minimo</th>
+              <th className="num campo">Pezzi per collo, contando</th>
               <th className="campo">Come si ordina</th>
               <th className="num">Ferraris: riordino / lotto</th>
               <th className="num">Spezia: riordino / lotto</th>
@@ -128,6 +129,20 @@ export default function Articoli() {
                       }}
                     />
                   </td>
+                  <td className="num">
+                    <input
+                      className="giorni"
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={a.pezzi_per_collo}
+                      title="Quanti pezzi stanno in un collo quando si conta a magazzino"
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        if (Number.isFinite(v) && v >= 0) s.cambiaArticolo(a.codice, { pezzi_per_collo: Math.trunc(v) });
+                      }}
+                    />
+                  </td>
                   <td>
                     <input
                       className="testo-breve"
@@ -178,7 +193,9 @@ export default function Articoli() {
 
       <p className="nota">
         La <strong>tipologia</strong> è il reparto di magazzino: raggruppa le righe del modulo cartaceo di rilevazione,
-        così chi conta fa un giro solo. Il lotto d&rsquo;ordine è il lotto calcolato portato al primo multiplo utile del
+        così chi conta fa un giro solo. <strong>Pezzi per collo</strong> è quanto vale un tocco del tasto grande nel
+        conteggio da telefono: di norma è il lotto minimo, ma dove non coincide va corretto qui (RETEPVC150 si ordina a
+        500 mq e si conta a rotoli da 50). Il lotto d&rsquo;ordine è il lotto calcolato portato al primo multiplo utile del
         lotto minimo. Con lotto minimo a 0 resta il lotto calcolato. I 7 articoli che a Spezia converrebbe prendere da Ferraris partono con la spunta
         tolta: {seed.candidati_rifornimento_da_ferraris_spezia.join(', ')}.
       </p>

@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { calcolaParametri } from './engine';
 import type { Parametri } from './engine';
 import { articoliDaSeed, seed, statisticheDaSeed, tempiDaSeed } from './seed';
-import type { Articolo, Rilevazione, Sede, Statistica, TempiMap } from './types';
+import { totaleContato } from './lib/conteggio';
+import type { Articolo, DettaglioConteggio, Rilevazione, Sede, Statistica, TempiMap } from './types';
 
 /**
  * Stato dell'applicazione.
@@ -24,6 +25,7 @@ interface ModificheArticolo {
   lotto_minimo?: number;
   lotto_nota?: string;
   tipologia?: string;
+  pezzi_per_collo?: number;
 }
 
 interface StatoSalvato {
@@ -80,6 +82,10 @@ interface Contesto {
   rilevazioneAperta: (sede: Sede) => Rilevazione | undefined;
   apriRilevazione: (sede: Sede) => Rilevazione;
   scriviGiacenza: (id: string, codice: string, giacenza: number | null) => void;
+  /** conteggio a colli e sfusi: il totale si ricalcola da qui */
+  scriviConteggio: (id: string, codice: string, dettaglio: DettaglioConteggio | null) => void;
+  /** mette l'articolo da parte: torna in fondo alla coda, non sparisce */
+  segnaSaltato: (id: string, codice: string, saltato: boolean) => void;
   /** l'ultima giacenza contata per quell'articolo in quella sede */
   ultimaGiacenza: (sede: Sede, codice: string) => UltimaGiacenza | undefined;
   /** decisione di trasferimento valida solo per quella rilevazione */
@@ -263,6 +269,38 @@ export function ProviderScorte({ children }: { children: ReactNode }) {
         rilevazione.trasferimenti?.[codice] ??
         statistiche(rilevazione.sede)[codice]?.rifornimento_da_altra_sede ??
         false,
+
+      scriviConteggio: (id, codice, dettaglio) =>
+        aggiorna((s) => ({
+          ...s,
+          rilevazioni: s.rilevazioni.map((r) => {
+            if (r.id !== id || r.stato === 'chiusa') return r;
+            const righe = { ...r.righe };
+            const det = { ...r.dettaglio };
+            if (dettaglio === null) {
+              delete righe[codice];
+              delete det[codice];
+            } else {
+              righe[codice] = totaleContato(dettaglio);
+              det[codice] = dettaglio;
+            }
+            // contato: non e' piu' da riprendere
+            const saltati = (r.saltati ?? []).filter((c) => c !== codice);
+            return { ...r, righe, dettaglio: det, saltati };
+          }),
+        })),
+
+      segnaSaltato: (id, codice, saltato) =>
+        aggiorna((s) => ({
+          ...s,
+          rilevazioni: s.rilevazioni.map((r) => {
+            if (r.id !== id || r.stato === 'chiusa') return r;
+            const attuali = new Set(r.saltati ?? []);
+            if (saltato) attuali.add(codice);
+            else attuali.delete(codice);
+            return { ...r, saltati: [...attuali] };
+          }),
+        })),
 
       scriviGiacenza: (id, codice, giacenza) =>
         aggiorna((s) => ({
