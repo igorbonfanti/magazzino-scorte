@@ -26,8 +26,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      # enablement: true attiva GitHub Pages sul repository se non lo e' gia',
-      # invece di fallire con "Get Pages site failed".
+      # Attenzione: enablement: true NON basta su un repository nuovo. Creare il
+      # sito Pages via API richiede i permessi di amministratore, che il token
+      # automatico delle Actions non ha mai: fallisce con "Create Pages site
+      # failed: Resource not accessible by integration". Pages va attivato una
+      # volta a mano in Settings > Pages > Source: GitHub Actions. Da li' in poi
+      # questo passaggio trova il sito gia' pronto.
       - uses: actions/configure-pages@v5
         with:
           enablement: true

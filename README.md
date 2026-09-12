@@ -82,6 +82,12 @@ niente.
 Il `base` in [`vite.config.ts`](vite.config.ts) deve coincidere con il nome del
 repository, altrimenti su Pages non si caricano CSS e JavaScript.
 
+**Da fare una volta sola, su un repository nuovo:** in Settings > Pages,
+*Build and deployment* > *Source*, scegliere **GitHub Actions**. Il workflow non
+puo' farlo da solo: creare il sito Pages richiede i permessi di amministratore,
+che il token delle Actions non ha. Senza questo passaggio il workflow fallisce
+con `Create Pages site failed: Resource not accessible by integration`.
+
 ## Cosa manca, in ordine
 
 1. **Accessi e archivio condiviso** con Firebase Auth e Firestore, sul progetto
