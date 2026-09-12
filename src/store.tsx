@@ -12,7 +12,6 @@ import {
   onSnapshot,
   query,
   updateDoc,
-  where,
 } from 'firebase/firestore';
 import { calcolaParametri } from './engine';
 import type { Parametri } from './engine';
@@ -237,15 +236,9 @@ export function ProviderScorte({ children }: { children: ReactNode }) {
   /** rilevazioni in ascolto: l'admin le vede tutte, l'operatore solo la sua sede */
   useEffect(() => {
     if (!utente || !profilo) return;
-    // Un operatore senza sede non ha diritto di leggere niente: chiedere
-    // comunque produrrebbe solo un errore di permessi.
-    if (profilo.ruolo !== 'admin' && !profilo.sede) {
-      setRilevazioni([]);
-      return;
-    }
-    const riferimento = collection(db, COLL.rilevazioni);
-    const q =
-      profilo.ruolo === 'admin' ? query(riferimento) : query(riferimento, where('sede', '==', profilo.sede));
+    // Chi conta vede i conteggi di entrambe le sedi: sceglie il magazzino
+    // all'inizio del giro, e le regole gli consentono la lettura.
+    const q = query(collection(db, COLL.rilevazioni));
     return onSnapshot(
       q,
       (snap) => {

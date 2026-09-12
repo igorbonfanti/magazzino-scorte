@@ -2,254 +2,277 @@ rules_version = '2';
 
 // REGOLE FIRESTORE COMPLETE — progetto magazzino-edile-pos
 //
-// Questo file contiene TUTTE le regole del progetto: le collection delle app
-// gia' esistenti (invariate) piu' il blocco dello Scadenziario Titoli.
-// Va incollato per intero nella console Firebase, sostituendo quello attuale.
+// Questo file contiene TUTTE le regole del progetto e va incollato per intero,
+// sostituendo quello attuale. E' l'unica copia versionata: le altre app
+// (magazzino-gestionale, ordini, solleciti) non hanno un proprio file.
 //
 // Nota sul funzionamento: le regole sono additive in OR. Se un blocco concede
 // l'accesso, l'accesso e' concesso; un "allow: if false" non nega, semplicemente
 // non concede. Per questo il catch-all finale non blocca le collection sopra.
+//
+// ---------------------------------------------------------------------------
+// AGOSTO 2026 — CHIUSURA DELL'ACCESSO ANONIMO
+//
+// Fino a oggi tutte le collection non-scad_ avevano "allow read: if true", e
+// diverse anche create/update/delete liberi. Con projectId e apiKey presenti in
+// repository pubblici, questo rendeva scaricabile da chiunque l'anagrafica
+// clienti (34.419 documenti), i preventivi e le pratiche di recupero crediti,
+// e modificabili le pratiche e gli ordini.
+//
+// Ora ogni accesso richiede un utente autorizzato. Le app che leggevano in
+// anonimo hanno ricevuto un login: magazzino-gestionale, ordini e solleciti.
+//
+// Le collection degli screener (bond_snapshots, bond_ladders, coma_snapshots)
+// non compaiono piu': quelle app sono passate al progetto
+// igorbonfanti-screener. I documenti restano nel database ma il catch-all li
+// rende inaccessibili; si possono eliminare quando vuoi.
+// ---------------------------------------------------------------------------
+// SETTEMBRE 2026 — APP SCORTE E MAGAZZINIERI
+//
+// Entra l'app scorte (conteggio giacenze e riordino), con le collection
+// scorte_*. Entrano anche due utenti nuovi, i magazzinieri, che NON sono
+// aggiunti ad autorizzato(): devono poter contare la merce e nient'altro.
+// Per clienti, preventivi, ordini, pratiche e assegni restano estranei
+// esattamente come prima, cioe' bloccati dal catch-all.
+// ---------------------------------------------------------------------------
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // === clienti (manualmente inseriti da app magazzino) ===
+    // =======================================================================
+    // CHI PUO' ACCEDERE
+    // =======================================================================
+    // Elenco esplicito degli UID abilitati. Volutamente piu' stretto del solo
+    // "request.auth != null": quello concede l'accesso a QUALUNQUE utente
+    // autenticato, e con l'apiKey pubblica basterebbe riattivare per sbaglio la
+    // registrazione self-service perche' chiunque possa registrarsi e leggere
+    // tutto. Con l'elenco, riaprire la registrazione non basta piu'.
+    //
+    // Per aggiungere una persona: creala in console e aggiungi qui il suo UID,
+    // poi ripubblica le regole. Sono quattro utenti, il costo e' accettabile.
+    //
+    //   0nGqBTD3...  bonfanti.igor@gmail.com
+    //   4Dak4tLe...  amministrazione@ilmagazzinoedile.com
+    //   iJRRRJDp...  commerciale@ilmagazzinoedile.com
+    //   pET8M4Mg...  carnevale.carlino@gmail.com
+    function autorizzato() {
+      return request.auth != null && request.auth.uid in [
+        '0nGqBTD30QTsovcf7f19KASy9Eg1',
+        '4Dak4tLe20O8gWtnSOh3h7Z3h5X2',
+        'iJRRRJDpvSeKwqfU1bJKQ3oSNy83',
+        'pET8M4MguvfvZaEwt2DilGwRUuC2'
+      ];
+    }
+
+    // I magazzinieri: contano la merce, e nient'altro. Tenuti in un elenco
+    // separato apposta, cosi' un domani che si aggiunge una collection nuova
+    // a un'altra app non se la ritrovano aperta per distrazione.
+    //
+    //   g6SSbwfE...  arturo@ilmagazzinoedile.com
+    //   QCW0XAmH...  charlie@ilmagazzinoedile.com
+    function magazziniere() {
+      return request.auth != null && request.auth.uid in [
+        'g6SSbwfEfrMPZCDKLZExsUxzmDJ3',
+        'QCW0XAmHr0WGjeaPYGmyuOtkW4s2'
+      ];
+    }
+
+    // Chi puo' almeno leggere i dati del magazzino.
+    function letturaScorte() {
+      return autorizzato() || magazziniere();
+    }
+
+    // =======================================================================
+    // APP MAGAZZINO (POS e preventivi)
+    // =======================================================================
+
+    // Clienti inseriti a mano dagli operatori, oltre a quelli del clienti.xlsx.
+    // Letta anche da solleciti, che vi aggiunge nominativi nuovi.
     match /clienti/{docId} {
-      allow read: if true;
-      allow create: if request.resource.data.ragione is string
-                    && request.resource.data.ragione.size() > 0
-                    && request.resource.data.ragione.size() < 500
+      allow read: if autorizzato();
+      allow create: if autorizzato()
                     && request.resource.data.size() < 20;
       allow update, delete: if false;
     }
 
-    // === customer_meta (telefoni/cantieri per cliente) ===
+    // Telefoni e cantieri per cliente: dati personali di terzi.
     match /customer_meta/{docId} {
-      allow read: if true;
-      allow create: if request.resource.data.ragione is string
+      allow read: if autorizzato();
+      allow create: if autorizzato()
+                    && request.resource.data.ragione is string
                     && request.resource.data.ragione.size() < 500;
-      // Update non deve poter cambiare la ragione sociale
-      allow update: if request.resource.data.ragione == resource.data.ragione;
+      // L'update non deve poter cambiare la ragione sociale, che fa da chiave
+      // logica di collegamento con l'anagrafica.
+      allow update: if autorizzato()
+                    && request.resource.data.ragione == resource.data.ragione;
       allow delete: if false;
     }
 
-    // === metadata/quoteCounter (contatore atomico preventivi) ===
+    // Preventivi salvati, con ID custom PREV-YYYY-NNNN.
+    match /quotes/{quoteId} {
+      allow read: if autorizzato();
+      allow create: if autorizzato()
+                    && request.resource.data.quoteId is string
+                    && request.resource.data.items is list;
+      allow update, delete: if false;
+    }
+
+    // Contatore atomico dei preventivi.
     match /metadata/{docId} {
-      allow read: if true;
-      allow write: if docId == 'quoteCounter'
+      allow read: if autorizzato();
+      allow write: if autorizzato()
+                   && docId == 'quoteCounter'
                    && request.resource.data.value is int
                    && request.resource.data.value > 0
                    && request.resource.data.value < 1000000;
     }
 
-    // === quotes (preventivi salvati con ID custom PREV-YYYY-NNNN) ===
-    match /quotes/{quoteId} {
-      allow read: if true;
-      allow create: if request.resource.data.quoteId is string
-                    && request.resource.data.items is list;
-      allow update, delete: if false;
-    }
+    // =======================================================================
+    // APP ORDINI
+    // =======================================================================
 
-    // === ordini_analizzati (app ordini) ===
+    // La delete resta concessa: l'app ha un pulsante per eliminare un ordine
+    // analizzato, ma ora solo a utente autorizzato.
     match /ordini_analizzati/{docId} {
-      allow read: if true;
-      allow create: if request.resource.data.size() < 100;
-      allow delete: if true;
+      allow read: if autorizzato();
+      allow create: if autorizzato() && request.resource.data.size() < 100;
+      allow delete: if autorizzato();
       allow update: if false;
     }
 
-    // === pratiche (dashboard solleciti) ===
+    // =======================================================================
+    // APP SOLLECITI (recupero crediti)
+    // =======================================================================
+
     match /pratiche/{praticaId} {
-      allow read: if true;
-      allow create: if true;
-      allow update: if true;
+      allow read, create, update: if autorizzato();
       allow delete: if false;
 
+      // Storico delle azioni: si aggiunge, non si riscrive.
       match /logs/{logId} {
-        allow read: if true;
-        allow create: if true;
+        allow read, create: if autorizzato();
         allow update, delete: if false;
       }
     }
 
-    // === pratiche_bozze (import da PDF - solleciti) ===
     match /pratiche_bozze/{docId} {
-      allow read: if true;
-      allow create: if true;
+      allow read, create: if autorizzato();
       allow update, delete: if false;
     }
 
-    // === bond_snapshots (Bond Screener: metadati caricamenti giornalieri) ===
-    match /bond_snapshots/{docId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.rowCount is number;
-      allow delete: if true;
-    }
-
-    // === bond_ladders (Bond Screener: ladder salvati) ===
-    match /bond_ladders/{docId} {
-      allow read: if true;
-      allow create: if request.resource.data.slots is list;
-      allow update: if false;
-      allow delete: if true;
-    }
-
-    // === coma_snapshots (Coma Screener: portafogli/analisi salvati) ===
-    match /coma_snapshots/{docId} {
-      allow read: if true;
-      allow create: if request.resource.data.picks is list;
-      allow update, delete: if true;
-    }
-
-    // ==========================================================
-    // === SCADENZIARIO TITOLI (app assegni fornitori) ==========
-    // ==========================================================
-    // A differenza delle collection sopra, queste richiedono un utente
-    // autenticato: contengono dati di pagamento fornitori e importi.
+    // =======================================================================
+    // SCADENZIARIO TITOLI (assegni fornitori)
+    // =======================================================================
     // Nessuna cancellazione fisica: si usa il flag "eliminato" (soft delete),
-    // quindi delete e' negato ovunque.
+    // quindi delete e' negato ovunque tranne sulle allocazioni.
 
-    function autenticato() {
-      return request.auth != null;
-    }
-
-    // Anagrafica fornitori: alias, P.IVA, termini di pagamento
     match /scad_fornitori/{docId} {
-      allow read, create, update: if autenticato();
+      allow read, create, update: if autorizzato();
       allow delete: if false;
     }
 
-    // Partite: fatture e note di credito importate dai tabulati Zucchetti
     match /scad_partite/{docId} {
-      allow read, create, update: if autenticato();
+      allow read, create, update: if autorizzato();
       allow delete: if false;
     }
 
-    // Titoli emessi: assegni, bonifici, RiBa
     match /scad_titoli/{docId} {
-      allow read, create, update: if autenticato();
+      allow read, create, update: if autorizzato();
       allow delete: if false;
     }
 
-    // Allocazioni titolo <-> partita.
     // Qui la delete e' concessa: annullare l'abbinamento di un assegno a una
-    // fattura e' un'operazione normale in fase di correzione, e la riga non
-    // contiene storia da conservare (titolo e partita restano).
+    // fattura e' un'operazione normale di correzione, e la riga non contiene
+    // storia da conservare (titolo e partita restano).
     match /scad_allocazioni/{docId} {
-      allow read, create, update, delete: if autenticato();
+      allow read, create, update, delete: if autorizzato();
     }
 
-    // Impegni di tesoreria: stipendi, F24, RiBa, affitto
     match /scad_impegni/{docId} {
-      allow read, create, update: if autenticato();
+      allow read, create, update: if autorizzato();
       allow delete: if false;
     }
 
-    // Incassi previsti (fase 2 del cruscotto)
     match /scad_incassi_previsti/{docId} {
-      allow read, create, update: if autenticato();
+      allow read, create, update: if autorizzato();
       allow delete: if false;
     }
 
-    // Log delle importazioni CSV: sola aggiunta, mai modificato
+    // Log delle importazioni CSV: sola aggiunta, mai modificato.
     match /scad_import/{docId} {
-      allow read, create: if autenticato();
+      allow read, create: if autorizzato();
       allow update, delete: if false;
     }
 
-    // Impostazioni: email amministrazione, elenco banche
     match /scad_impostazioni/{docId} {
-      allow read, create, update: if autenticato();
+      allow read, create, update: if autorizzato();
       allow delete: if false;
     }
 
-    // ==========================================================
-    // === SCORTE (app conteggio giacenze e riordino) ===========
-    // ==========================================================
-    // Dati di magazzino delle due sedi: consumi, costi, conteggi.
-    // Richiedono sempre un utente autenticato. Il ruolo sta nel documento
-    // scorte_utenti/{uid}: "admin" tocca tutto, "operatore" conta soltanto
-    // nella propria sede. Nessuno puo' promuoversi da solo.
+    // =======================================================================
+    // APP SCORTE (conteggio giacenze e riordino)
+    // =======================================================================
+    // I dati di base — parametri, tempi di consegna, articoli, consumi per
+    // sede — li legge anche chi conta, perche' senza non sa cosa cercare ne'
+    // in che colli. Scriverli invece e' roba da autorizzato(): sono i numeri
+    // che decidono cosa si ordina.
 
-    function autenticatoScorte() {
-      return request.auth != null;
-    }
-
-    function profiloScorte() {
-      return get(/databases/$(database)/documents/scorte_utenti/$(request.auth.uid)).data;
-    }
-
-    function adminScorte() {
-      return autenticatoScorte()
-             && exists(/databases/$(database)/documents/scorte_utenti/$(request.auth.uid))
-             && profiloScorte().ruolo == 'admin';
-    }
-
-    function sedePropria(sede) {
-      return autenticatoScorte()
-             && exists(/databases/$(database)/documents/scorte_utenti/$(request.auth.uid))
-             && profiloScorte().sede == sede;
-    }
-
-    // Profilo: ognuno legge il proprio, e al primo accesso se lo crea come
-    // semplice operatore senza sede. Ruolo e sede li assegna l'admin: per
-    // questo l'utente non puo' aggiornare il proprio documento.
-    match /scorte_utenti/{uid} {
-      allow read: if autenticatoScorte() && (request.auth.uid == uid || adminScorte());
-      // L'admin puo' creare il profilo di chiunque, conoscendone l'UID.
-      // Chiunque altro puo' creare solo il proprio, e solo come operatore
-      // senza sede: ruolo e sede restano una decisione dell'admin.
-      allow create: if adminScorte()
-                    || (autenticatoScorte()
-                        && request.auth.uid == uid
-                        && request.resource.data.ruolo == 'operatore'
-                        && request.resource.data.sede == null);
-      allow update, delete: if adminScorte();
-    }
-
-    // Parametri generali: elenco sorvegliato, esclusi, periodo dei consumi
     match /scorte_config/{docId} {
-      allow read: if autenticatoScorte();
-      allow write: if adminScorte();
+      allow read: if letturaScorte();
+      allow write: if autorizzato();
     }
 
-    // Tempi di consegna per fornitore
     match /scorte_tempi/{fornitore} {
-      allow read: if autenticatoScorte();
-      allow write: if adminScorte();
+      allow read: if letturaScorte();
+      allow write: if autorizzato();
     }
 
-    // Anagrafica articoli: fornitore, lotto minimo, tipologia
     match /scorte_articoli/{idCodice} {
-      allow read: if autenticatoScorte();
-      allow write: if adminScorte();
+      allow read: if letturaScorte();
+      allow write: if autorizzato();
     }
 
-    // Consumi gia' elaborati, per sede e articolo. Non si calcolano nell'app:
-    // arrivano dall'importazione, quindi li scrive solo l'admin.
+    // Consumi gia' elaborati: non si calcolano nell'app, arrivano
+    // dall'importazione iniziale.
     match /scorte_statistiche/{idRiga} {
-      allow read: if autenticatoScorte();
-      allow write: if adminScorte();
+      allow read: if letturaScorte();
+      allow write: if autorizzato();
     }
 
-    // Conteggi delle giacenze.
-    // L'operatore vede e scrive solo quelli della propria sede, e solo finche'
-    // sono in bozza: una rilevazione chiusa non si tocca piu'. Cancellare
-    // spetta all'admin.
+    // I conteggi delle giacenze.
+    // Il magazziniere apre una rilevazione e la compila; non puo' pero'
+    // riaprire quello che ha chiuso, ne' cancellare un conteggio fatto. Una
+    // rilevazione chiusa e' un documento di magazzino, si corregge solo da
+    // parte di chi ha la responsabilita' dei numeri.
     match /scorte_rilevazioni/{docId} {
-      allow read: if adminScorte() || sedePropria(resource.data.sede);
-      allow create: if adminScorte()
-                    || (sedePropria(request.resource.data.sede)
+      allow read: if letturaScorte();
+      allow create: if autorizzato()
+                    || (magazziniere()
                         && request.resource.data.stato == 'bozza'
                         && request.resource.data.operatore_uid == request.auth.uid);
-      allow update: if adminScorte()
-                    || (sedePropria(resource.data.sede)
-                        && resource.data.stato == 'bozza'
-                        && request.resource.data.sede == resource.data.sede);
-      allow delete: if adminScorte();
+      allow update: if autorizzato()
+                    || (magazziniere() && resource.data.stato == 'bozza');
+      allow delete: if autorizzato();
     }
 
-    // Tutto il resto: nega
+    // Profilo applicativo: nome e sede mostrati dall'app. Non e' questo a dare
+    // i permessi — quelli stanno negli elenchi di UID qui sopra — ma serve
+    // all'app per sapere chi sei. Il magazziniere puo' crearsi il proprio al
+    // primo accesso, non modificarlo.
+    match /scorte_utenti/{uid} {
+      allow read: if autorizzato() || (magazziniere() && request.auth.uid == uid);
+      allow create: if autorizzato()
+                    || (magazziniere()
+                        && request.auth.uid == uid
+                        && request.resource.data.ruolo == 'operatore');
+      allow update, delete: if autorizzato();
+    }
+
+    // =======================================================================
+    // Tutto il resto: nega.
+    // Comprende le vecchie collection degli screener, ora sul progetto
+    // igorbonfanti-screener.
+    // =======================================================================
     match /{document=**} {
       allow read, write: if false;
     }

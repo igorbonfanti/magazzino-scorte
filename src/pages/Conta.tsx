@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAccesso } from '../lib/auth';
 import {
   costruisciCoda,
   descriviConteggio,
@@ -32,6 +33,21 @@ const VUOTO: DettaglioConteggio = { colli: 0, sfusi: 0, pezziPerCollo: 0 };
  */
 export default function Conta() {
   const s = useScorte();
+  const { profilo, logout } = useAccesso();
+  const admin = profilo?.ruolo === 'admin';
+
+  /** Per il magazziniere "esci" vuol dire uscire davvero: altre pagine non ne ha. */
+  const Uscita = () =>
+    admin ? (
+      <Link className="conta-uscita" to="/rilevazione">
+        torna all&rsquo;app
+      </Link>
+    ) : (
+      <button className="conta-uscita" onClick={() => void logout()}>
+        esci
+      </button>
+    );
+
   const [sede, setSede] = useState<Sede | null>(null);
   const [raggruppa, setRaggruppa] = useState<Raggruppamento>('tipologia');
   const [gruppo, setGruppo] = useState<string | null>(null);
@@ -110,9 +126,7 @@ export default function Conta() {
       <div className="conta">
         <header className="conta-testata">
           <span>Conteggio giacenze</span>
-          <Link className="conta-uscita" to="/rilevazione">
-            esci
-          </Link>
+          <Uscita />
         </header>
 
         <div className="conta-scelta">

@@ -50,29 +50,15 @@ export default function App() {
     );
   }
 
-  // operatore a cui non e' ancora stata assegnata una sede
-  if (profilo && profilo.ruolo === 'operatore' && !profilo.sede) {
-    return (
-      <div className="app">
-        <Intestazione nome={profilo.nome} ruolo={profilo.ruolo} tema={tema} cambiaTema={cambiaTema} logout={logout} />
-        <main>
-          <section className="testo">
-            <h2>Sede non assegnata</h2>
-            <p>
-              Il tuo accesso funziona, ma non ti è ancora stata assegnata una sede, quindi non c&rsquo;è niente da
-              contare. Chiedi all&rsquo;amministratore di assegnartela.
-            </p>
-          </section>
-        </main>
-      </div>
-    );
-  }
-
   if (!s.pronto) {
     return <Attesa messaggio={s.errore ? `Errore: ${s.errore}` : 'Carico i dati del magazzino…'} />;
   }
 
-  // il conteggio si apre a tutto schermo, senza menu
+  // Il magazziniere fa solo la conta: nessun menu, nessuna altra pagina.
+  // Qualunque indirizzo digiti, finisce sul conteggio.
+  if (!admin) return <Conta />;
+
+  // anche per l'amministratore il conteggio si apre a tutto schermo
   if (posizione.pathname === '/conta') return <Conta />;
 
   return (
