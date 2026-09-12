@@ -1,26 +1,46 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import {
+  FieldPath,
+  addDoc,
+  collection,
+  deleteDoc,
+  deleteField,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  query,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { calcolaParametri } from './engine';
 import type { Parametri } from './engine';
-import { articoliDaSeed, seed, statisticheDaSeed, tempiDaSeed } from './seed';
 import { totaleContato } from './lib/conteggio';
-import type { Articolo, DettaglioConteggio, Rilevazione, Sede, Statistica, TempiMap } from './types';
+import { COLL, DOC_PARAMETRI, db, idCodice, idStatistica } from './lib/firebase';
+import { useAccesso } from './lib/auth';
+import type { Articolo, DettaglioConteggio, Rilevazione, Sede, Statistica, TempiMap, Utente } from './types';
 
 /**
- * Stato dell'applicazione.
+ * Stato dell'applicazione, su Firestore.
  *
- * Le statistiche di consumo arrivano dal seed e non si toccano. Quello che
- * l'amministratore può cambiare — tempi di consegna, fornitore, lotto minimo,
- * elenco sorvegliato, rifornimento da altra sede — viene tenuto qui come
- * scostamento dal seed e salvato nel browser.
+ * I dati di base — parametri, tempi, articoli, statistiche — cambiano di rado
+ * e sono quasi 2.700 documenti: riscaricarli a ogni apertura costerebbe
+ * letture e secondi, soprattutto col telefono in magazzino. Si tengono quindi
+ * in cache nel browser, usando come marcatore la data di aggiornamento scritta
+ * nei parametri: appena l'amministratore tocca qualcosa quella data cambia e
+ * la cache si rifa' da sola.
  *
- * In Fase 2 questo modulo diventa il punto unico da riscrivere su Firestore:
- * le pagine non sanno da dove arrivano i dati.
+ * Le rilevazioni invece sono in ascolto continuo: quello che il magazziniere
+ * conta col telefono compare sul PC mentre lo conta.
  */
 
-const CHIAVE = 'scorte.v1';
+const CHIAVE_CACHE = 'scorte.cache.v1';
+const CHIAVE_SEDE = 'scorte.sede';
+/** quanto si aspetta, digitando nella tabella, prima di scrivere su Firestore */
+const ATTESA_SALVATAGGIO = 700;
 
-interface ModificheArticolo {
+export interface ModificheArticolo {
   fornitore?: string;
   lotto_minimo?: number;
   lotto_nota?: string;
@@ -28,38 +48,40 @@ interface ModificheArticolo {
   pezzi_per_collo?: number;
 }
 
-interface StatoSalvato {
-  tempi: Record<string, number>;
-  articoli: Record<string, ModificheArticolo>;
-  /** chiave `${sede}|${codice}` */
-  rifornimenti: Record<string, boolean>;
-  sorvegliati: string[] | null;
-  rilevazioni: Rilevazione[];
-  sedeCorrente: Sede;
+export interface ConfigScorte {
+  lead_time_base: number;
+  fornitore_default: string;
+  periodo_consumi: string;
+  elenco_sorvegliato: string[];
+  esclusi: string[];
+  aggiornato_il: string;
 }
 
-const VUOTO: StatoSalvato = {
-  tempi: {},
-  articoli: {},
-  rifornimenti: {},
-  sorvegliati: null,
-  rilevazioni: [],
-  sedeCorrente: 'ferraris',
-};
-
-function leggiSalvato(): StatoSalvato {
-  try {
-    const grezzo = localStorage.getItem(CHIAVE);
-    if (!grezzo) return VUOTO;
-    return { ...VUOTO, ...(JSON.parse(grezzo) as Partial<StatoSalvato>) };
-  } catch {
-    return VUOTO;
-  }
+interface Base {
+  config: ConfigScorte;
+  tempi: TempiMap;
+  articoli: Record<string, Articolo>;
+  statistiche: Record<Sede, Record<string, Statistica>>;
 }
 
-interface Contesto {
+export interface UltimaGiacenza {
+  giacenza: number;
+  data: string;
+  stato: Rilevazione['stato'];
+}
+
+export interface Contesto {
+  /** i dati di base sono arrivati */
+  pronto: boolean;
+  errore: string | null;
+  profilo: Utente | null;
+  /** l'archivio e' vuoto: serve l'importazione iniziale */
+  daImportare: boolean;
+
   sede: Sede;
   cambiaSede: (sede: Sede) => void;
+  /** l'operatore e' legato alla sua sede, l'admin no */
+  puoCambiareSede: boolean;
 
   tempi: TempiMap;
   articoli: Record<string, Articolo>;
@@ -69,7 +91,6 @@ interface Contesto {
   statistiche: (sede: Sede) => Record<string, Statistica>;
   statistica: (sede: Sede, codice: string) => Statistica | undefined;
   parametri: (sede: Sede, codice: string) => Parametri | undefined;
-  /** parametri con i 5 giorni uguali per tutti, come prima dell'11 settembre */
   parametriPrima: (sede: Sede, codice: string) => Parametri | undefined;
 
   cambiaTempo: (fornitore: string, giorni: number) => void;
@@ -80,81 +101,168 @@ interface Contesto {
   spostaSorvegliato: (codice: string, verso: -1 | 1) => void;
 
   rilevazioneAperta: (sede: Sede) => Rilevazione | undefined;
-  apriRilevazione: (sede: Sede) => Rilevazione;
+  apriRilevazione: (sede: Sede) => void;
   scriviGiacenza: (id: string, codice: string, giacenza: number | null) => void;
-  /** conteggio a colli e sfusi: il totale si ricalcola da qui */
   scriviConteggio: (id: string, codice: string, dettaglio: DettaglioConteggio | null) => void;
-  /** mette l'articolo da parte: torna in fondo alla coda, non sparisce */
   segnaSaltato: (id: string, codice: string, saltato: boolean) => void;
-  /** l'ultima giacenza contata per quell'articolo in quella sede */
-  ultimaGiacenza: (sede: Sede, codice: string) => UltimaGiacenza | undefined;
-  /** decisione di trasferimento valida solo per quella rilevazione */
-  cambiaTrasferimento: (id: string, codice: string, dallAltraSede: boolean) => void;
-  /** se per questo conteggio l'articolo si prende dall'altra sede */
-  siTrasferisce: (rilevazione: Rilevazione, codice: string) => boolean;
   chiudiRilevazione: (id: string) => void;
   eliminaRilevazione: (id: string) => void;
+  ultimaGiacenza: (sede: Sede, codice: string) => UltimaGiacenza | undefined;
+  cambiaTrasferimento: (id: string, codice: string, dallAltraSede: boolean) => void;
+  siTrasferisce: (rilevazione: Rilevazione, codice: string) => boolean;
 
-  modificato: boolean;
-  ripristinaSeed: () => void;
-}
-
-export interface UltimaGiacenza {
-  giacenza: number;
-  data: string;
-  stato: Rilevazione['stato'];
+  /** riscarica i dati di base saltando la cache */
+  ricarica: () => Promise<void>;
 }
 
 const Ctx = createContext<Contesto | null>(null);
 
-const STAT_SEED: Record<Sede, Record<string, Statistica>> = {
-  ferraris: statisticheDaSeed('ferraris'),
-  spezia: statisticheDaSeed('spezia'),
-};
-const ARTICOLI_SEED = articoliDaSeed();
-const TEMPI_SEED = tempiDaSeed();
+/* ------------------------------------------------------------------ */
+/* dati di base: cache nel browser, marcata con la data di aggiornamento */
+/* ------------------------------------------------------------------ */
+
+function leggiCache(stamp: string): Base | null {
+  try {
+    const grezzo = localStorage.getItem(CHIAVE_CACHE);
+    if (!grezzo) return null;
+    const salvato = JSON.parse(grezzo) as { stamp: string; base: Base };
+    return salvato.stamp === stamp ? salvato.base : null;
+  } catch {
+    return null;
+  }
+}
+
+function scriviCache(stamp: string, base: Base): void {
+  try {
+    localStorage.setItem(CHIAVE_CACHE, JSON.stringify({ stamp, base }));
+  } catch {
+    /* spazio esaurito: si lavora lo stesso, solo piu' lenti al prossimo avvio */
+  }
+}
+
+async function scaricaBase(config: ConfigScorte): Promise<Base> {
+  const [tempiSnap, articoliSnap, statSnap] = await Promise.all([
+    getDocs(collection(db, COLL.tempi)),
+    getDocs(collection(db, COLL.articoli)),
+    getDocs(collection(db, COLL.statistiche)),
+  ]);
+
+  const tempi: TempiMap = {};
+  tempiSnap.forEach((d) => {
+    const v = d.data() as { fornitore: string; giorni: number };
+    tempi[v.fornitore] = v.giorni;
+  });
+
+  const articoli: Record<string, Articolo> = {};
+  articoliSnap.forEach((d) => {
+    const a = d.data() as Articolo;
+    articoli[a.codice] = a;
+  });
+
+  const statistiche: Record<Sede, Record<string, Statistica>> = { ferraris: {}, spezia: {} };
+  statSnap.forEach((d) => {
+    const s = d.data() as Statistica;
+    if (s.sede === 'ferraris' || s.sede === 'spezia') statistiche[s.sede][s.codice] = s;
+  });
+
+  return { config, tempi, articoli, statistiche };
+}
+
+/** Le mappe su Firestore sono indicizzate per ID codice: qui si torna ai codici veri. */
+function decodificaRilevazione(r: Rilevazione): Rilevazione {
+  function decodifica<T>(mappa: Record<string, T> | undefined): Record<string, T> | undefined {
+    if (!mappa) return undefined;
+    const out: Record<string, T> = {};
+    for (const [chiave, valore] of Object.entries(mappa)) out[decodeURIComponent(chiave)] = valore;
+    return out;
+  }
+  return {
+    ...r,
+    righe: decodifica(r.righe) ?? {},
+    dettaglio: decodifica(r.dettaglio),
+    trasferimenti: decodifica(r.trasferimenti),
+    saltati: r.saltati?.map((c) => decodeURIComponent(c)),
+  };
+}
+
+/* ------------------------------------------------------------------ */
 
 export function ProviderScorte({ children }: { children: ReactNode }) {
-  const [salvato, setSalvato] = useState<StatoSalvato>(() => leggiSalvato());
-  const primoGiro = useRef(true);
+  const { utente, profilo } = useAccesso();
+  const [base, setBase] = useState<Base | null>(null);
+  const [rilevazioni, setRilevazioni] = useState<Rilevazione[]>([]);
+  const [errore, setErrore] = useState<string | null>(null);
+  const [daImportare, setDaImportare] = useState(false);
+  const [sedeScelta, setSedeScelta] = useState<Sede>(() =>
+    localStorage.getItem(CHIAVE_SEDE) === 'spezia' ? 'spezia' : 'ferraris',
+  );
+  /** salvataggi rinviati, per non scrivere a ogni tasto */
+  const rinvii = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
-  useEffect(() => {
-    if (primoGiro.current) {
-      primoGiro.current = false;
-      return;
-    }
-    try {
-      localStorage.setItem(CHIAVE, JSON.stringify(salvato));
-    } catch {
-      /* spazio esaurito: si continua comunque a lavorare in memoria */
-    }
-  }, [salvato]);
+  const admin = profilo?.ruolo === 'admin';
 
-  const tempi = useMemo<TempiMap>(() => ({ ...TEMPI_SEED, ...salvato.tempi }), [salvato.tempi]);
-
-  const articoli = useMemo<Record<string, Articolo>>(() => {
-    const out: Record<string, Articolo> = {};
-    for (const [codice, a] of Object.entries(ARTICOLI_SEED)) {
-      const m = salvato.articoli[codice];
-      out[codice] = m ? { ...a, ...m } : a;
-    }
-    return out;
-  }, [salvato.articoli]);
-
-  const statistiche = useCallback(
-    (sede: Sede) => {
-      const base = STAT_SEED[sede];
-      if (!Object.keys(salvato.rifornimenti).length) return base;
-      const out: Record<string, Statistica> = {};
-      for (const [codice, s] of Object.entries(base)) {
-        const flag = salvato.rifornimenti[`${sede}|${codice}`];
-        out[codice] = flag === undefined ? s : { ...s, rifornimento_da_altra_sede: flag };
+  const carica = useCallback(
+    async (saltaCache = false) => {
+      if (!utente) return;
+      setErrore(null);
+      try {
+        const configSnap = await getDoc(doc(db, COLL.config, DOC_PARAMETRI));
+        if (!configSnap.exists()) {
+          setDaImportare(true);
+          setBase(null);
+          return;
+        }
+        setDaImportare(false);
+        const config = configSnap.data() as ConfigScorte;
+        const stamp = config.aggiornato_il ?? '';
+        const cache = saltaCache ? null : leggiCache(stamp);
+        if (cache) {
+          setBase({ ...cache, config });
+          return;
+        }
+        const scaricata = await scaricaBase(config);
+        scriviCache(stamp, scaricata);
+        setBase(scaricata);
+      } catch (e) {
+        setErrore((e as Error)?.message ?? 'Impossibile leggere i dati.');
       }
-      return out;
     },
-    [salvato.rifornimenti],
+    [utente],
   );
 
+  useEffect(() => {
+    void carica();
+  }, [carica]);
+
+  /** rilevazioni in ascolto: l'admin le vede tutte, l'operatore solo la sua sede */
+  useEffect(() => {
+    if (!utente || !profilo) return;
+    // Un operatore senza sede non ha diritto di leggere niente: chiedere
+    // comunque produrrebbe solo un errore di permessi.
+    if (profilo.ruolo !== 'admin' && !profilo.sede) {
+      setRilevazioni([]);
+      return;
+    }
+    const riferimento = collection(db, COLL.rilevazioni);
+    const q =
+      profilo.ruolo === 'admin' ? query(riferimento) : query(riferimento, where('sede', '==', profilo.sede));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const elenco: Rilevazione[] = [];
+        snap.forEach((d) => elenco.push({ ...(d.data() as Omit<Rilevazione, 'id'>), id: d.id }));
+        elenco.sort((a, b) => b.data.localeCompare(a.data));
+        setRilevazioni(elenco.map(decodificaRilevazione));
+      },
+      (e) => setErrore(e.message),
+    );
+  }, [utente, profilo]);
+
+  const tempi = useMemo(() => base?.tempi ?? {}, [base]);
+  const articoli = useMemo(() => base?.articoli ?? {}, [base]);
+  const sorvegliati = useMemo(() => base?.config.elenco_sorvegliato ?? [], [base]);
+
+  const statistiche = useCallback((sede: Sede) => base?.statistiche[sede] ?? {}, [base]);
   const statistica = useCallback((sede: Sede, codice: string) => statistiche(sede)[codice], [statistiche]);
 
   const parametri = useCallback(
@@ -170,24 +278,78 @@ export function ProviderScorte({ children }: { children: ReactNode }) {
     (sede: Sede, codice: string) => {
       const s = statistiche(sede)[codice];
       const a = articoli[codice];
-      return s && a ? calcolaParametri(s, a, { [seed.meta.fornitore_default]: seed.meta.lead_time_base }) : undefined;
+      const soloBase = { [base?.config.fornitore_default ?? 'altri fornitori']: base?.config.lead_time_base ?? 5 };
+      return s && a ? calcolaParametri(s, a, soloBase) : undefined;
     },
-    [statistiche, articoli],
+    [statistiche, articoli, base],
   );
 
-  const sorvegliati = salvato.sorvegliati ?? seed.elenco_sorvegliato;
+  /** aggiorna subito in memoria e poi su Firestore: l'interfaccia non aspetta la rete */
+  const aggiornaBase = useCallback(
+    (modifica: (b: Base) => Base, scrittura: () => Promise<unknown>) => {
+      const quando = new Date().toISOString();
+      setBase((b) => {
+        if (!b) return b;
+        const nuova = modifica(b);
+        const conData = { ...nuova, config: { ...nuova.config, aggiornato_il: quando } };
+        scriviCache(quando, conData);
+        return conData;
+      });
+      scrittura()
+        .then(() => updateDoc(doc(db, COLL.config, DOC_PARAMETRI), { aggiornato_il: quando }))
+        .catch((e) => setErrore((e as Error).message));
+    },
+    [],
+  );
 
-  const aggiorna = useCallback((patch: (s: StatoSalvato) => StatoSalvato) => setSalvato(patch), []);
+  const valore = useMemo<Contesto>(() => {
+    const sede: Sede = profilo?.ruolo === 'operatore' && profilo.sede ? profilo.sede : sedeScelta;
 
-  const valore = useMemo<Contesto>(
-    () => ({
-      sede: salvato.sedeCorrente,
-      cambiaSede: (sede) => aggiorna((s) => ({ ...s, sedeCorrente: sede })),
+    function rinvia(chiave: string, azione: () => Promise<unknown>) {
+      const attuale = rinvii.current.get(chiave);
+      if (attuale) clearTimeout(attuale);
+      rinvii.current.set(
+        chiave,
+        setTimeout(() => {
+          rinvii.current.delete(chiave);
+          azione().catch((e) => setErrore((e as Error).message));
+        }, ATTESA_SALVATAGGIO),
+      );
+    }
+
+    function subito(azione: () => Promise<unknown>) {
+      azione().catch((e) => setErrore((e as Error).message));
+    }
+
+    /** aggiorna la rilevazione in memoria senza aspettare il giro su Firestore */
+    function ottimistico(id: string, modifica: (r: Rilevazione) => Rilevazione) {
+      setRilevazioni((elenco) => elenco.map((r) => (r.id === id ? modifica(r) : r)));
+    }
+
+    function aggiornaConfig(elenco: string[]) {
+      aggiornaBase(
+        (b) => ({ ...b, config: { ...b.config, elenco_sorvegliato: elenco } }),
+        () => updateDoc(doc(db, COLL.config, DOC_PARAMETRI), { elenco_sorvegliato: elenco }),
+      );
+    }
+
+    return {
+      pronto: base !== null,
+      errore,
+      profilo,
+      daImportare,
+
+      sede,
+      cambiaSede: (nuova) => {
+        setSedeScelta(nuova);
+        localStorage.setItem(CHIAVE_SEDE, nuova);
+      },
+      puoCambiareSede: admin || !profilo?.sede,
 
       tempi,
       articoli,
       sorvegliati,
-      rilevazioni: salvato.rilevazioni,
+      rilevazioni,
 
       statistiche,
       statistica,
@@ -195,147 +357,167 @@ export function ProviderScorte({ children }: { children: ReactNode }) {
       parametriPrima,
 
       cambiaTempo: (fornitore, giorni) =>
-        aggiorna((s) => ({ ...s, tempi: { ...s.tempi, [fornitore]: giorni } })),
+        aggiornaBase(
+          (b) => ({ ...b, tempi: { ...b.tempi, [fornitore]: giorni } }),
+          () => updateDoc(doc(db, COLL.tempi, fornitore), { giorni }),
+        ),
 
       cambiaArticolo: (codice, modifiche) =>
-        aggiorna((s) => ({
-          ...s,
-          articoli: { ...s.articoli, [codice]: { ...s.articoli[codice], ...modifiche } },
-        })),
+        aggiornaBase(
+          (b) => ({ ...b, articoli: { ...b.articoli, [codice]: { ...b.articoli[codice], ...modifiche } } }),
+          () => updateDoc(doc(db, COLL.articoli, idCodice(codice)), { ...modifiche }),
+        ),
 
-      cambiaRifornimento: (sede, codice, da) =>
-        aggiorna((s) => ({ ...s, rifornimenti: { ...s.rifornimenti, [`${sede}|${codice}`]: da } })),
+      cambiaRifornimento: (quale, codice, da) =>
+        aggiornaBase(
+          (b) => ({
+            ...b,
+            statistiche: {
+              ...b.statistiche,
+              [quale]: {
+                ...b.statistiche[quale],
+                [codice]: { ...b.statistiche[quale][codice], rifornimento_da_altra_sede: da },
+              },
+            },
+          }),
+          () => updateDoc(doc(db, COLL.statistiche, idStatistica(quale, codice)), { rifornimento_da_altra_sede: da }),
+        ),
 
-      aggiungiSorvegliato: (codice) =>
-        aggiorna((s) => {
-          const elenco = s.sorvegliati ?? seed.elenco_sorvegliato;
-          if (elenco.includes(codice)) return s;
-          return { ...s, sorvegliati: [...elenco, codice] };
-        }),
-
-      togliSorvegliato: (codice) =>
-        aggiorna((s) => {
-          const elenco = s.sorvegliati ?? seed.elenco_sorvegliato;
-          return { ...s, sorvegliati: elenco.filter((c) => c !== codice) };
-        }),
-
-      spostaSorvegliato: (codice, verso) =>
-        aggiorna((s) => {
-          const elenco = [...(s.sorvegliati ?? seed.elenco_sorvegliato)];
-          const i = elenco.indexOf(codice);
-          const j = i + verso;
-          if (i < 0 || j < 0 || j >= elenco.length) return s;
-          [elenco[i], elenco[j]] = [elenco[j], elenco[i]];
-          return { ...s, sorvegliati: elenco };
-        }),
-
-      rilevazioneAperta: (sede) => salvato.rilevazioni.find((r) => r.sede === sede && r.stato === 'bozza'),
-
-      apriRilevazione: (sede) => {
-        const esistente = salvato.rilevazioni.find((r) => r.sede === sede && r.stato === 'bozza');
-        if (esistente) return esistente;
-        const nuova: Rilevazione = {
-          id: `${sede}-${Date.now()}`,
-          sede,
-          data: new Date().toISOString(),
-          operatore_uid: 'locale',
-          operatore_nome: 'Operatore',
-          stato: 'bozza',
-          righe: {},
-        };
-        aggiorna((s) => ({ ...s, rilevazioni: [nuova, ...s.rilevazioni] }));
-        return nuova;
+      aggiungiSorvegliato: (codice) => {
+        if (sorvegliati.includes(codice)) return;
+        aggiornaConfig([...sorvegliati, codice]);
       },
 
-      ultimaGiacenza: (sede, codice) => {
-        const candidate = salvato.rilevazioni
-          .filter((r) => r.sede === sede && r.righe[codice] !== undefined)
-          .sort((a, b) => b.data.localeCompare(a.data));
-        const ultima = candidate[0];
-        return ultima
-          ? { giacenza: ultima.righe[codice], data: ultima.data, stato: ultima.stato }
-          : undefined;
+      togliSorvegliato: (codice) => aggiornaConfig(sorvegliati.filter((c) => c !== codice)),
+
+      spostaSorvegliato: (codice, verso) => {
+        const elenco = [...sorvegliati];
+        const i = elenco.indexOf(codice);
+        const j = i + verso;
+        if (i < 0 || j < 0 || j >= elenco.length) return;
+        [elenco[i], elenco[j]] = [elenco[j], elenco[i]];
+        aggiornaConfig(elenco);
       },
 
-      cambiaTrasferimento: (id, codice, dallAltraSede) =>
-        aggiorna((s) => ({
-          ...s,
-          rilevazioni: s.rilevazioni.map((r) =>
-            r.id === id ? { ...r, trasferimenti: { ...r.trasferimenti, [codice]: dallAltraSede } } : r,
+      rilevazioneAperta: (quale) => rilevazioni.find((r) => r.sede === quale && r.stato === 'bozza'),
+
+      apriRilevazione: (quale) => {
+        if (rilevazioni.some((r) => r.sede === quale && r.stato === 'bozza')) return;
+        subito(() =>
+          addDoc(collection(db, COLL.rilevazioni), {
+            sede: quale,
+            data: new Date().toISOString(),
+            operatore_uid: utente?.uid ?? '',
+            operatore_nome: profilo?.nome ?? utente?.email ?? '',
+            stato: 'bozza',
+            righe: {},
+          }),
+        );
+      },
+
+      scriviGiacenza: (id, codice, giacenza) => {
+        ottimistico(id, (r) => {
+          const righe = { ...r.righe };
+          if (giacenza === null) delete righe[codice];
+          else righe[codice] = giacenza;
+          return { ...r, righe };
+        });
+        rinvia(`${id}|${codice}`, () =>
+          updateDoc(
+            doc(db, COLL.rilevazioni, id),
+            new FieldPath('righe', idCodice(codice)),
+            giacenza === null ? deleteField() : giacenza,
           ),
-        })),
+        );
+      },
+
+      scriviConteggio: (id, codice, dettaglio) => {
+        const rimasti = (rilevazioni.find((r) => r.id === id)?.saltati ?? []).filter((c) => c !== codice);
+        ottimistico(id, (r) => {
+          const righe = { ...r.righe };
+          const det = { ...r.dettaglio };
+          if (dettaglio === null) {
+            delete righe[codice];
+            delete det[codice];
+          } else {
+            righe[codice] = totaleContato(dettaglio);
+            det[codice] = dettaglio;
+          }
+          return { ...r, righe, dettaglio: det, saltati: rimasti };
+        });
+        subito(() =>
+          updateDoc(
+            doc(db, COLL.rilevazioni, id),
+            new FieldPath('righe', idCodice(codice)),
+            dettaglio === null ? deleteField() : totaleContato(dettaglio),
+            new FieldPath('dettaglio', idCodice(codice)),
+            dettaglio === null ? deleteField() : dettaglio,
+            'saltati',
+            rimasti.map(idCodice),
+          ),
+        );
+      },
+
+      segnaSaltato: (id, codice, saltato) => {
+        const attuali = new Set(rilevazioni.find((r) => r.id === id)?.saltati ?? []);
+        if (saltato) attuali.add(codice);
+        else attuali.delete(codice);
+        const elenco = [...attuali];
+        ottimistico(id, (r) => ({ ...r, saltati: elenco }));
+        subito(() => updateDoc(doc(db, COLL.rilevazioni, id), { saltati: elenco.map(idCodice) }));
+      },
+
+      chiudiRilevazione: (id) => {
+        const chiusa_il = new Date().toISOString();
+        ottimistico(id, (r) => ({ ...r, stato: 'chiusa', chiusa_il }));
+        subito(() => updateDoc(doc(db, COLL.rilevazioni, id), { stato: 'chiusa', chiusa_il }));
+      },
+
+      eliminaRilevazione: (id) => {
+        setRilevazioni((elenco) => elenco.filter((r) => r.id !== id));
+        subito(() => deleteDoc(doc(db, COLL.rilevazioni, id)));
+      },
+
+      ultimaGiacenza: (quale, codice) => {
+        const ultima = rilevazioni
+          .filter((r) => r.sede === quale && r.righe[codice] !== undefined)
+          .sort((a, b) => b.data.localeCompare(a.data))[0];
+        return ultima ? { giacenza: ultima.righe[codice], data: ultima.data, stato: ultima.stato } : undefined;
+      },
+
+      cambiaTrasferimento: (id, codice, dallAltraSede) => {
+        ottimistico(id, (r) => ({ ...r, trasferimenti: { ...r.trasferimenti, [codice]: dallAltraSede } }));
+        subito(() =>
+          updateDoc(doc(db, COLL.rilevazioni, id), new FieldPath('trasferimenti', idCodice(codice)), dallAltraSede),
+        );
+      },
 
       siTrasferisce: (rilevazione, codice) =>
         rilevazione.trasferimenti?.[codice] ??
         statistiche(rilevazione.sede)[codice]?.rifornimento_da_altra_sede ??
         false,
 
-      scriviConteggio: (id, codice, dettaglio) =>
-        aggiorna((s) => ({
-          ...s,
-          rilevazioni: s.rilevazioni.map((r) => {
-            if (r.id !== id || r.stato === 'chiusa') return r;
-            const righe = { ...r.righe };
-            const det = { ...r.dettaglio };
-            if (dettaglio === null) {
-              delete righe[codice];
-              delete det[codice];
-            } else {
-              righe[codice] = totaleContato(dettaglio);
-              det[codice] = dettaglio;
-            }
-            // contato: non e' piu' da riprendere
-            const saltati = (r.saltati ?? []).filter((c) => c !== codice);
-            return { ...r, righe, dettaglio: det, saltati };
-          }),
-        })),
-
-      segnaSaltato: (id, codice, saltato) =>
-        aggiorna((s) => ({
-          ...s,
-          rilevazioni: s.rilevazioni.map((r) => {
-            if (r.id !== id || r.stato === 'chiusa') return r;
-            const attuali = new Set(r.saltati ?? []);
-            if (saltato) attuali.add(codice);
-            else attuali.delete(codice);
-            return { ...r, saltati: [...attuali] };
-          }),
-        })),
-
-      scriviGiacenza: (id, codice, giacenza) =>
-        aggiorna((s) => ({
-          ...s,
-          rilevazioni: s.rilevazioni.map((r) => {
-            if (r.id !== id || r.stato === 'chiusa') return r;
-            const righe = { ...r.righe };
-            if (giacenza === null) delete righe[codice];
-            else righe[codice] = giacenza;
-            return { ...r, righe };
-          }),
-        })),
-
-      chiudiRilevazione: (id) =>
-        aggiorna((s) => ({
-          ...s,
-          rilevazioni: s.rilevazioni.map((r) =>
-            r.id === id ? { ...r, stato: 'chiusa', chiusa_il: new Date().toISOString() } : r,
-          ),
-        })),
-
-      eliminaRilevazione: (id) =>
-        aggiorna((s) => ({ ...s, rilevazioni: s.rilevazioni.filter((r) => r.id !== id) })),
-
-      modificato:
-        Object.keys(salvato.tempi).length > 0 ||
-        Object.keys(salvato.articoli).length > 0 ||
-        Object.keys(salvato.rifornimenti).length > 0 ||
-        salvato.sorvegliati !== null,
-
-      ripristinaSeed: () =>
-        aggiorna((s) => ({ ...VUOTO, rilevazioni: s.rilevazioni, sedeCorrente: s.sedeCorrente })),
-    }),
-    [salvato, tempi, articoli, sorvegliati, statistiche, statistica, parametri, parametriPrima, aggiorna],
-  );
+      ricarica: () => carica(true),
+    };
+  }, [
+    base,
+    errore,
+    profilo,
+    admin,
+    daImportare,
+    sedeScelta,
+    tempi,
+    articoli,
+    sorvegliati,
+    rilevazioni,
+    statistiche,
+    statistica,
+    parametri,
+    parametriPrima,
+    aggiornaBase,
+    utente,
+    carica,
+  ]);
 
   return <Ctx.Provider value={valore}>{children}</Ctx.Provider>;
 }

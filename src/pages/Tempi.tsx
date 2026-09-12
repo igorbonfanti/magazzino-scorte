@@ -10,6 +10,20 @@ import { useScorte } from '../store';
 export default function Tempi() {
   const s = useScorte();
 
+  /** i fornitori sono quelli su Firestore; fonte e note restano quelle del file. */
+  const righe = useMemo(() => {
+    const note = new Map(seed.tempi_consegna.map((t) => [t.fornitore, t]));
+    return Object.keys(s.tempi)
+      .sort((a, b) => a.localeCompare(b, 'it'))
+      .map((fornitore) => ({
+        fornitore,
+        giorni: s.tempi[fornitore],
+        origine: note.get(fornitore)?.giorni,
+        fonte: note.get(fornitore)?.fonte ?? '',
+        note: note.get(fornitore)?.note ?? '',
+      }));
+  }, [s.tempi]);
+
   const conteggi = useMemo(() => {
     const perFornitore: Record<string, { totale: number; sorvegliati: number }> = {};
     for (const a of Object.values(s.articoli)) {
@@ -24,18 +38,7 @@ export default function Tempi() {
     <section>
       <div className="barra">
         <h2>Tempi di consegna</h2>
-        {s.modificato && (
-          <button
-            className="bottone"
-            onClick={() => {
-              if (confirm('Rimettere tempi, fornitori, lotti ed elenco sorvegliato come nel file di partenza?')) {
-                s.ripristinaSeed();
-              }
-            }}
-          >
-            Ripristina i valori di partenza
-          </button>
-        )}
+
       </div>
 
       <p className="nota">
@@ -57,9 +60,9 @@ export default function Tempi() {
             </tr>
           </thead>
           <tbody>
-            {seed.tempi_consegna.map((t) => {
-              const attuale = s.tempi[t.fornitore];
-              const cambiato = attuale !== t.giorni;
+            {righe.map((t) => {
+              const attuale = t.giorni;
+              const cambiato = t.origine !== undefined && attuale !== t.origine;
               const c = conteggi[t.fornitore] ?? { totale: 0, sorvegliati: 0 };
               return (
                 <tr key={t.fornitore} className={cambiato ? 'cambiata' : undefined}>
@@ -77,7 +80,7 @@ export default function Tempi() {
                         if (Number.isFinite(v) && v >= 1 && v <= 60) s.cambiaTempo(t.fornitore, Math.trunc(v));
                       }}
                     />
-                    {cambiato && <span className="prima">era {t.giorni}</span>}
+                    {cambiato && <span className="prima">era {t.origine}</span>}
                   </td>
                   <td className="num">{formattaIntero(c.totale)}</td>
                   <td className="num">{c.sorvegliati > 0 ? formattaIntero(c.sorvegliati) : '—'}</td>

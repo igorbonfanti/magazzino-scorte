@@ -1,0 +1,257 @@
+rules_version = '2';
+
+// REGOLE FIRESTORE COMPLETE — progetto magazzino-edile-pos
+//
+// Questo file contiene TUTTE le regole del progetto: le collection delle app
+// gia' esistenti (invariate) piu' il blocco dello Scadenziario Titoli.
+// Va incollato per intero nella console Firebase, sostituendo quello attuale.
+//
+// Nota sul funzionamento: le regole sono additive in OR. Se un blocco concede
+// l'accesso, l'accesso e' concesso; un "allow: if false" non nega, semplicemente
+// non concede. Per questo il catch-all finale non blocca le collection sopra.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // === clienti (manualmente inseriti da app magazzino) ===
+    match /clienti/{docId} {
+      allow read: if true;
+      allow create: if request.resource.data.ragione is string
+                    && request.resource.data.ragione.size() > 0
+                    && request.resource.data.ragione.size() < 500
+                    && request.resource.data.size() < 20;
+      allow update, delete: if false;
+    }
+
+    // === customer_meta (telefoni/cantieri per cliente) ===
+    match /customer_meta/{docId} {
+      allow read: if true;
+      allow create: if request.resource.data.ragione is string
+                    && request.resource.data.ragione.size() < 500;
+      // Update non deve poter cambiare la ragione sociale
+      allow update: if request.resource.data.ragione == resource.data.ragione;
+      allow delete: if false;
+    }
+
+    // === metadata/quoteCounter (contatore atomico preventivi) ===
+    match /metadata/{docId} {
+      allow read: if true;
+      allow write: if docId == 'quoteCounter'
+                   && request.resource.data.value is int
+                   && request.resource.data.value > 0
+                   && request.resource.data.value < 1000000;
+    }
+
+    // === quotes (preventivi salvati con ID custom PREV-YYYY-NNNN) ===
+    match /quotes/{quoteId} {
+      allow read: if true;
+      allow create: if request.resource.data.quoteId is string
+                    && request.resource.data.items is list;
+      allow update, delete: if false;
+    }
+
+    // === ordini_analizzati (app ordini) ===
+    match /ordini_analizzati/{docId} {
+      allow read: if true;
+      allow create: if request.resource.data.size() < 100;
+      allow delete: if true;
+      allow update: if false;
+    }
+
+    // === pratiche (dashboard solleciti) ===
+    match /pratiche/{praticaId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if false;
+
+      match /logs/{logId} {
+        allow read: if true;
+        allow create: if true;
+        allow update, delete: if false;
+      }
+    }
+
+    // === pratiche_bozze (import da PDF - solleciti) ===
+    match /pratiche_bozze/{docId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
+    // === bond_snapshots (Bond Screener: metadati caricamenti giornalieri) ===
+    match /bond_snapshots/{docId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.rowCount is number;
+      allow delete: if true;
+    }
+
+    // === bond_ladders (Bond Screener: ladder salvati) ===
+    match /bond_ladders/{docId} {
+      allow read: if true;
+      allow create: if request.resource.data.slots is list;
+      allow update: if false;
+      allow delete: if true;
+    }
+
+    // === coma_snapshots (Coma Screener: portafogli/analisi salvati) ===
+    match /coma_snapshots/{docId} {
+      allow read: if true;
+      allow create: if request.resource.data.picks is list;
+      allow update, delete: if true;
+    }
+
+    // ==========================================================
+    // === SCADENZIARIO TITOLI (app assegni fornitori) ==========
+    // ==========================================================
+    // A differenza delle collection sopra, queste richiedono un utente
+    // autenticato: contengono dati di pagamento fornitori e importi.
+    // Nessuna cancellazione fisica: si usa il flag "eliminato" (soft delete),
+    // quindi delete e' negato ovunque.
+
+    function autenticato() {
+      return request.auth != null;
+    }
+
+    // Anagrafica fornitori: alias, P.IVA, termini di pagamento
+    match /scad_fornitori/{docId} {
+      allow read, create, update: if autenticato();
+      allow delete: if false;
+    }
+
+    // Partite: fatture e note di credito importate dai tabulati Zucchetti
+    match /scad_partite/{docId} {
+      allow read, create, update: if autenticato();
+      allow delete: if false;
+    }
+
+    // Titoli emessi: assegni, bonifici, RiBa
+    match /scad_titoli/{docId} {
+      allow read, create, update: if autenticato();
+      allow delete: if false;
+    }
+
+    // Allocazioni titolo <-> partita.
+    // Qui la delete e' concessa: annullare l'abbinamento di un assegno a una
+    // fattura e' un'operazione normale in fase di correzione, e la riga non
+    // contiene storia da conservare (titolo e partita restano).
+    match /scad_allocazioni/{docId} {
+      allow read, create, update, delete: if autenticato();
+    }
+
+    // Impegni di tesoreria: stipendi, F24, RiBa, affitto
+    match /scad_impegni/{docId} {
+      allow read, create, update: if autenticato();
+      allow delete: if false;
+    }
+
+    // Incassi previsti (fase 2 del cruscotto)
+    match /scad_incassi_previsti/{docId} {
+      allow read, create, update: if autenticato();
+      allow delete: if false;
+    }
+
+    // Log delle importazioni CSV: sola aggiunta, mai modificato
+    match /scad_import/{docId} {
+      allow read, create: if autenticato();
+      allow update, delete: if false;
+    }
+
+    // Impostazioni: email amministrazione, elenco banche
+    match /scad_impostazioni/{docId} {
+      allow read, create, update: if autenticato();
+      allow delete: if false;
+    }
+
+    // ==========================================================
+    // === SCORTE (app conteggio giacenze e riordino) ===========
+    // ==========================================================
+    // Dati di magazzino delle due sedi: consumi, costi, conteggi.
+    // Richiedono sempre un utente autenticato. Il ruolo sta nel documento
+    // scorte_utenti/{uid}: "admin" tocca tutto, "operatore" conta soltanto
+    // nella propria sede. Nessuno puo' promuoversi da solo.
+
+    function autenticatoScorte() {
+      return request.auth != null;
+    }
+
+    function profiloScorte() {
+      return get(/databases/$(database)/documents/scorte_utenti/$(request.auth.uid)).data;
+    }
+
+    function adminScorte() {
+      return autenticatoScorte()
+             && exists(/databases/$(database)/documents/scorte_utenti/$(request.auth.uid))
+             && profiloScorte().ruolo == 'admin';
+    }
+
+    function sedePropria(sede) {
+      return autenticatoScorte()
+             && exists(/databases/$(database)/documents/scorte_utenti/$(request.auth.uid))
+             && profiloScorte().sede == sede;
+    }
+
+    // Profilo: ognuno legge il proprio, e al primo accesso se lo crea come
+    // semplice operatore senza sede. Ruolo e sede li assegna l'admin: per
+    // questo l'utente non puo' aggiornare il proprio documento.
+    match /scorte_utenti/{uid} {
+      allow read: if autenticatoScorte() && (request.auth.uid == uid || adminScorte());
+      // L'admin puo' creare il profilo di chiunque, conoscendone l'UID.
+      // Chiunque altro puo' creare solo il proprio, e solo come operatore
+      // senza sede: ruolo e sede restano una decisione dell'admin.
+      allow create: if adminScorte()
+                    || (autenticatoScorte()
+                        && request.auth.uid == uid
+                        && request.resource.data.ruolo == 'operatore'
+                        && request.resource.data.sede == null);
+      allow update, delete: if adminScorte();
+    }
+
+    // Parametri generali: elenco sorvegliato, esclusi, periodo dei consumi
+    match /scorte_config/{docId} {
+      allow read: if autenticatoScorte();
+      allow write: if adminScorte();
+    }
+
+    // Tempi di consegna per fornitore
+    match /scorte_tempi/{fornitore} {
+      allow read: if autenticatoScorte();
+      allow write: if adminScorte();
+    }
+
+    // Anagrafica articoli: fornitore, lotto minimo, tipologia
+    match /scorte_articoli/{idCodice} {
+      allow read: if autenticatoScorte();
+      allow write: if adminScorte();
+    }
+
+    // Consumi gia' elaborati, per sede e articolo. Non si calcolano nell'app:
+    // arrivano dall'importazione, quindi li scrive solo l'admin.
+    match /scorte_statistiche/{idRiga} {
+      allow read: if autenticatoScorte();
+      allow write: if adminScorte();
+    }
+
+    // Conteggi delle giacenze.
+    // L'operatore vede e scrive solo quelli della propria sede, e solo finche'
+    // sono in bozza: una rilevazione chiusa non si tocca piu'. Cancellare
+    // spetta all'admin.
+    match /scorte_rilevazioni/{docId} {
+      allow read: if adminScorte() || sedePropria(resource.data.sede);
+      allow create: if adminScorte()
+                    || (sedePropria(request.resource.data.sede)
+                        && request.resource.data.stato == 'bozza'
+                        && request.resource.data.operatore_uid == request.auth.uid);
+      allow update: if adminScorte()
+                    || (sedePropria(resource.data.sede)
+                        && resource.data.stato == 'bozza'
+                        && request.resource.data.sede == resource.data.sede);
+      allow delete: if adminScorte();
+    }
+
+    // Tutto il resto: nega
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

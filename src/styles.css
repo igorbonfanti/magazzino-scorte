@@ -1580,3 +1580,136 @@ tr.totale td {
     display: none;
   }
 }
+
+/* --- accesso e attese --- */
+
+.attesa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: var(--tenue);
+  font-size: 15px;
+}
+
+.accesso {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 20px;
+}
+
+.accesso-riquadro {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 380px;
+  padding: 28px 26px 26px;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 10px;
+  background: var(--pannello);
+}
+
+.accesso-riquadro h1 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.accesso-riquadro .sottotitolo {
+  margin: -12px 0 6px;
+}
+
+.accesso-riquadro label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--testo-secondario);
+  font-size: 14px;
+}
+
+.accesso-riquadro input {
+  padding: 10px 12px;
+  border: 1px solid var(--bordo-campo);
+  border-radius: 8px;
+  background: var(--campo);
+  color: var(--testo);
+  /* almeno 16px o iPhone ingrandisce la pagina */
+  font-size: 16px;
+}
+
+.accesso-riquadro input:focus {
+  outline: 2px solid var(--accento);
+  outline-offset: 1px;
+}
+
+.accesso-errore {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--accento-tenue);
+  color: var(--accento);
+  font-size: 14px;
+}
+
+.accesso-nota {
+  margin: 4px 0 0;
+  color: var(--tenue);
+  font-size: 12px;
+}
+
+.avviso-errore {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--accento-tenue);
+  color: var(--accento);
+  font-size: 13px;
+}
+
+/* --- gestione utenti --- */
+
+.riquadro-utente {
+  margin: 16px 0 22px;
+  padding: 16px 18px;
+  border: 1px solid var(--bordo-medio);
+  border-radius: 8px;
+  background: var(--pannello);
+}
+
+.riquadro-utente h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.campi-utente {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.campi-utente label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--tenue);
+  font-size: 12px;
+}
+
+.campi-utente input,
+.campi-utente select {
+  padding: 7px 9px;
+  border: 1px solid var(--bordo-campo);
+  border-radius: 6px;
+  background: var(--campo);
+  color: var(--testo);
+  font: inherit;
+  font-size: 14px;
+}
+
+.campi-utente input {
+  min-width: 210px;
+}

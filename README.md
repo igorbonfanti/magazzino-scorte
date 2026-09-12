@@ -44,19 +44,39 @@ funzioni pure senza dipendenze.
 Gli importi viaggiano sempre in **centesimi interi**
 ([`src/money.ts`](src/money.ts)): nessun calcolo monetario in virgola mobile.
 
-## Dove stanno i dati
+## Accessi e dati
 
-**In questa prima versione i dati stanno nel browser** (`localStorage`), sul
-computer di chi usa l'app. Questo significa che:
+Login con email e password (Firebase Auth) sul progetto condiviso
+`magazzino-edile-pos`, lo stesso delle altre app del magazzino. Tutte le
+collection hanno prefisso `scorte_` e le regole in
+[`firestore.rules`](firestore.rules) le isolano dal resto del progetto.
 
-- le rilevazioni e le modifiche ai parametri **non sono condivise** fra le due sedi
-  né fra computer diversi;
-- svuotando i dati del sito si perde tutto;
-- non c'è login: chi apre l'indirizzo vede tutto.
+| Ruolo | Cosa può fare |
+|---|---|
+| **admin** | tutto: parametri, articoli, utenti, importazione, entrambe le sedi |
+| **operatore** | conta nella propria sede, e solo finché la rilevazione è in bozza |
+
+L'account si crea in Firebase Authentication; il profilo (ruolo e sede) si
+assegna dalla pagina **Utenti** dell'app, partendo dall'UID. Nessuno può
+promuoversi da solo: il primo admin si promuove a mano dalla console, una volta.
+
+I dati di base — parametri, tempi, articoli, statistiche: quasi 2.700
+documenti — stanno in cache nel browser, marcati con `aggiornato_il`: si
+riscaricano solo quando l'admin cambia qualcosa. Le rilevazioni sono invece in
+ascolto continuo, così il conteggio fatto col telefono appare sul PC mentre
+avviene.
 
 Tutto l'accesso ai dati passa da un unico modulo,
-[`src/store.tsx`](src/store.tsx): è il punto da riscrivere su Firestore nella
-fase successiva, senza toccare le pagine.
+[`src/store.tsx`](src/store.tsx).
+
+### Da fare una volta, su un progetto nuovo
+
+1. Incollare `firestore.rules` nella console Firebase (il file contiene **tutte**
+   le regole del progetto, non solo quelle di questa app).
+2. Creare il proprio utente in Authentication.
+3. Entrare nell'app una volta: crea `scorte_utenti/{uid}` come operatore.
+4. In Firestore, cambiare quel documento in `ruolo: "admin"`.
+5. Dalla pagina **Importa dati**, caricare il seed.
 
 ## Sviluppo
 
