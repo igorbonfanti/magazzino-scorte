@@ -7,26 +7,11 @@
  * barretta a sinistra. A scorrere aiutano invece righe alternate, evidenziazione
  * al passaggio del mouse e riga attiva durante la digitazione.
  */
+/* Colori, misure e scala tipografica arrivano da tema.css, condiviso con le
+   altre app del magazzino e importato in main.tsx prima di questo file.
+   Qui restano solo le pastiglie delle classi A/B/C del prontuario: sono le
+   tinte del foglio di calcolo, non fanno parte del tema. */
 :root {
-  --fondo: #f6f5f2;
-  --pannello: #ffffff;
-  --testo: #1a1a18;
-  --testo-secondario: #55554e;
-  --tenue: #74746d;
-  --bordo: #e6e5e0;
-  --bordo-medio: #cfcec8;
-  --bordo-forte: #1a1a18;
-  --campo: #ffffff;
-  --bordo-campo: #b4b4ad;
-  --accento: #8a3324;
-  --accento-tenue: #f6e7e3;
-  --verde: #2f6b46;
-  --righe-alterne: #f3f3ef;
-  --riga-sotto-mouse: #eef2f6;
-  --riga-attiva: #e4eef7;
-  --evidenza: #fdf6e3;
-
-  /* pastiglie e barrette delle classi: le stesse tinte del foglio di calcolo */
   --classe-a: #e3f0e8;
   --classe-b: #fbf3dc;
   --classe-c: #efefef;
@@ -34,47 +19,22 @@
   --classe-b-forte: #cfa22c;
   --classe-c-forte: #a8a8a0;
   --testo-classe: #1a1a18;
-
-  color-scheme: light;
 }
-
 :root[data-tema='scuro'] {
-  --fondo: #131317;
-  --pannello: #1b1b21;
-  --testo: #eceae5;
-  --testo-secondario: #c2bfb8;
-  --tenue: #97948c;
-  --bordo: #2e2e37;
-  --bordo-medio: #3f3f4a;
-  --bordo-forte: #8b8b96;
-  --campo: #24242b;
-  --bordo-campo: #4c4c58;
-  --accento: #e8917a;
-  --accento-tenue: #3a2520;
-  --verde: #74c795;
-  --righe-alterne: #23232b;
-  --riga-sotto-mouse: #26313c;
-  --riga-attiva: #2c3a49;
-  --evidenza: #332f1e;
-
+  --classe-a: #24322a;
+  --classe-b: #332f1e;
+  --classe-c: #2a2a31;
   --classe-a-forte: #4c9a72;
   --classe-b-forte: #cfa22c;
   --classe-c-forte: #6f6f78;
-
-  color-scheme: dark;
+  --testo-classe: #eceae5;
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  background: var(--fondo);
-  color: var(--testo);
-  font: 15px/1.5 -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
+/* Carattere, colori e misure arrivano da tema.css e base.css. */
 
 .app {
   max-width: 1600px;
@@ -82,35 +42,11 @@ body {
   padding: 0 20px 60px;
 }
 
-/* --- intestazione --- */
 
-.intestazione {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 18px 0 12px;
-}
 
-.intestazione h1 {
-  margin: 0;
-  font-size: 24px;
-  letter-spacing: 0.01em;
-}
-
-.sottotitolo {
-  margin: 2px 0 0;
-  color: var(--tenue);
-  font-size: 13px;
-}
-
-.comandi-intestazione {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
+/* Testata e navigazione sono .ag-header e .ag-nav, definite in base.css
+   assieme alle altre app del magazzino. Qui resta il selettore di sede, che
+   e' solo di quest'app. */
 .scelta-sede {
   display: flex;
   gap: 0;
@@ -129,51 +65,7 @@ body {
   border-left: 1px solid var(--bordo-medio);
 }
 
-/* --- navigazione --- */
 
-nav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  padding: 0 0 10px;
-  border-bottom: 1px solid var(--bordo-medio);
-}
-
-nav a {
-  padding: 6px 11px;
-  border-radius: 5px;
-  color: var(--testo-secondario);
-  text-decoration: none;
-  font-size: 14px;
-}
-
-nav a:hover {
-  background: var(--riga-sotto-mouse);
-  color: var(--testo);
-}
-
-nav a.active {
-  background: var(--testo);
-  color: var(--fondo);
-  font-weight: 600;
-}
-
-.gruppo-nav {
-  margin-left: 14px;
-  padding-left: 14px;
-  border-left: 1px solid var(--bordo);
-  color: var(--tenue);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.gruppo-nav:first-child {
-  margin-left: 0;
-  padding-left: 0;
-  border-left: 0;
-}
 
 main {
   padding-top: 24px;
@@ -204,41 +96,16 @@ main {
   align-items: center;
 }
 
+/* .bottone e' definito in base.css assieme a .btn delle altre app: stesso
+   aspetto, stesse misure. Qui resta solo cio' che non e' un bottone comune. */
 .bottone {
-  padding: 6px 12px;
-  border: 1px solid var(--bordo-medio);
-  border-radius: 5px;
-  background: var(--pannello);
-  color: var(--testo);
   text-decoration: none;
-  font: inherit;
-  font-size: 14px;
 }
 
 button.bottone {
   cursor: pointer;
 }
 
-.bottone:hover:not(:disabled) {
-  border-color: var(--bordo-forte);
-}
-
-.bottone.principale {
-  border-color: var(--bordo-forte);
-  background: var(--testo);
-  color: var(--fondo);
-  font-weight: 600;
-}
-
-.bottone.piccolo {
-  padding: 2px 8px;
-  font-size: 12px;
-}
-
-.bottone:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
 
 .stato-salvataggio {
   color: var(--tenue);
@@ -354,9 +221,9 @@ button.bottone {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--pannello);
-  border-bottom: 1px solid var(--bordo-forte);
-  font-size: 10.5px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border-strong);
+  font-size: var(--fs-micro);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1186,6 +1053,39 @@ tr.totale td {
 }
 
 /* --- i tasti, unica forma di comando in tutta la schermata --- */
+
+/* Il tasto della schermata di accesso. La classe c'era nel markup ma non e'
+   mai stata definita qui: "Entra" usciva col bottone grigio predefinito del
+   browser, ed e' la prima cosa che si vede dell'app. */
+.tasto-grosso {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 6px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease-in-out;
+}
+
+.tasto-grosso:hover:not(:disabled) {
+  background: var(--accent2);
+}
+
+.tasto-grosso:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.tasto-grosso:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 
 .tasto-largo {
   width: 100%;

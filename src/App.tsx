@@ -73,8 +73,8 @@ export default function App() {
         cambiaSede={s.puoCambiareSede ? s.cambiaSede : undefined}
       />
 
-      <nav className="schermo">
-        <span className="gruppo-nav">Sede</span>
+      <nav className="ag-nav">
+        <span className="ag-nav-gruppo">Sede</span>
         <NavLink to="/rilevazione">Rilevazione</NavLink>
         <NavLink to="/conta">Conta dal telefono</NavLink>
         <NavLink to="/modulo">Modulo da stampare</NavLink>
@@ -82,18 +82,18 @@ export default function App() {
         <NavLink to="/prontuario">Prontuario</NavLink>
         {admin && (
           <>
-            <span className="gruppo-nav">Parametri</span>
+            <span className="ag-nav-gruppo">Parametri</span>
             <NavLink to="/tempi">Tempi di consegna</NavLink>
             <NavLink to="/articoli">Articoli e lotti</NavLink>
             <NavLink to="/sorvegliati">Elenco sorvegliato</NavLink>
-            <span className="gruppo-nav">Controllo</span>
+            <span className="ag-nav-gruppo">Controllo</span>
             <NavLink to="/variazioni">Variazioni</NavLink>
             <NavLink to="/sintesi">Sintesi</NavLink>
             <NavLink to="/utenti">Utenti</NavLink>
             <NavLink to="/importa">Importa dati</NavLink>
           </>
         )}
-        <span className="gruppo-nav">Altro</span>
+        <span className="ag-nav-gruppo">Altro</span>
         <NavLink to="/storico">Storico</NavLink>
         <NavLink to="/aiuto">Come si calcola</NavLink>
       </nav>
@@ -149,16 +149,18 @@ function Intestazione({
   cambiaSede?: (s: Sede) => void;
 }) {
   return (
-    <header className="intestazione schermo">
-      <div>
-        <h1>Scorte</h1>
-        <p className="sottotitolo">
-          Il Magazzino Edile · {nome}
-          {ruolo === 'admin' ? ' (amministratore)' : ''}
+    <header className="ag-header">
+      <div className="ag-logo">ME</div>
+      <div className="ag-titolo">
+        <h1>Il Magazzino Edile</h1>
+        <span className="ag-modulo">Scorte</span>
+        <p className="ag-sottotitolo">
+          {nome}
+          {ruolo === 'admin' ? ' · amministratore' : ''}
         </p>
       </div>
 
-      <div className="comandi-intestazione">
+      <div className="ag-azioni">
         {sede && cambiaSede && (
           <div className="scelta-sede">
             {SEDI.map((quale) => (
