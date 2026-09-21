@@ -16,10 +16,31 @@ export default function Articoli() {
   const s = useScorte();
   const [cerca, setCerca] = useState('');
   const [soloSorvegliati, setSoloSorvegliati] = useState(true);
+  const [soloAmbigui, setSoloAmbigui] = useState(false);
 
   const fornitori = useMemo(
     () => [...new Set([...seed.tempi_consegna.map((t) => t.fornitore), ...Object.values(s.articoli).map((a) => a.fornitore)])].sort((a, b) => a.localeCompare(b, 'it')),
     [s.articoli],
+  );
+
+  /**
+   * Descrizioni che non bastano a riconoscere l'articolo perche' identiche a
+   * quelle di un altro codice: LAMP25 e LAMP5 sono tutti e due "LAMPOCEM
+   * CEMENTO RAPIDO", e chi conta non sa se ha in mano il sacco da 25 o da 5.
+   * Arrivano cosi' dal gestionale: si correggono a mano, qui.
+   */
+  const ambigue = useMemo(() => {
+    const quante = new Map<string, number>();
+    for (const a of Object.values(s.articoli)) {
+      const chiave = a.descrizione.trim().toUpperCase();
+      quante.set(chiave, (quante.get(chiave) ?? 0) + 1);
+    }
+    return new Set([...quante.entries()].filter(([, n]) => n > 1).map(([d]) => d));
+  }, [s.articoli]);
+
+  const quantiAmbigui = useMemo(
+    () => Object.values(s.articoli).filter((a) => ambigue.has(a.descrizione.trim().toUpperCase())).length,
+    [s.articoli, ambigue],
   );
 
   const trovati = useMemo(() => {
@@ -27,11 +48,12 @@ export default function Articoli() {
     const tutti = Object.values(s.articoli);
     const filtrati = tutti.filter((a) => {
       if (soloSorvegliati && !s.sorvegliati.includes(a.codice)) return false;
+      if (soloAmbigui && !ambigue.has(a.descrizione.trim().toUpperCase())) return false;
       if (!q) return true;
       return a.codice.toLowerCase().includes(q) || a.descrizione.toLowerCase().includes(q) || a.fornitore.toLowerCase().includes(q);
     });
     return filtrati.sort((a, b) => a.codice.localeCompare(b.codice, 'it'));
-  }, [s.articoli, s.sorvegliati, cerca, soloSorvegliati]);
+  }, [s.articoli, s.sorvegliati, cerca, soloSorvegliati, soloAmbigui, ambigue]);
 
   const mostrati = trovati.slice(0, MAX_RIGHE);
 
@@ -52,6 +74,10 @@ export default function Articoli() {
         <label className="spunta">
           <input type="checkbox" checked={soloSorvegliati} onChange={(e) => setSoloSorvegliati(e.target.checked)} />
           solo i {s.sorvegliati.length} sorvegliati
+        </label>
+        <label className="spunta">
+          <input type="checkbox" checked={soloAmbigui} onChange={(e) => setSoloAmbigui(e.target.checked)} />
+          solo le descrizioni doppie ({formattaIntero(quantiAmbigui)})
         </label>
         <span className="nota">
           {formattaIntero(trovati.length)} articoli
@@ -86,7 +112,17 @@ export default function Articoli() {
               return (
                 <tr key={a.codice}>
                   <td className="codice">{a.codice}</td>
-                  <td>{a.descrizione}</td>
+                  <td>
+                    <input
+                      className="testo-descrizione"
+                      type="text"
+                      value={a.descrizione}
+                      onChange={(e) => s.cambiaArticolo(a.codice, { descrizione: e.target.value })}
+                    />
+                    {ambigue.has(a.descrizione.trim().toUpperCase()) && (
+                      <div className="prima">uguale a un altro codice: aggiungi la misura</div>
+                    )}
+                  </td>
                   <td>{a.um}</td>
                   <td>
                     <select
@@ -192,6 +228,9 @@ export default function Articoli() {
       </div>
 
       <p className="nota">
+        La <strong>descrizione</strong> si può correggere: quella del gestionale a volte non distingue due articoli
+        diversi — LAMP25 e LAMP5 sono tutti e due &ldquo;LAMPOCEM CEMENTO RAPIDO&rdquo; — e chi conta non sa cosa ha
+        in mano. La spunta <em>solo le descrizioni doppie</em> mostra tutti i casi da sistemare.
         La <strong>tipologia</strong> è il reparto di magazzino: raggruppa le righe del modulo cartaceo di rilevazione,
         così chi conta fa un giro solo. <strong>Pezzi per collo</strong> è quanto vale un tocco del tasto grande nel
         conteggio da telefono: di norma è il lotto minimo, ma dove non coincide va corretto qui (RETEPVC150 si ordina a

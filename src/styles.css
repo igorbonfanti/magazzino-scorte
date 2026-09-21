@@ -1572,3 +1572,26 @@ tr.totale td {
 .campi-utente input {
   min-width: 210px;
 }
+
+.testo-descrizione {
+  width: 100%;
+  min-width: 260px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+
+.testo-descrizione:hover {
+  border-color: var(--bordo-medio);
+}
+
+.testo-descrizione:focus {
+  border-color: var(--bordo-forte);
+  background: var(--campo);
+  outline: 2px solid var(--accento);
+  outline-offset: 1px;
+}

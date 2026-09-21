@@ -40,6 +40,7 @@ const CHIAVE_SEDE = 'scorte.sede';
 const ATTESA_SALVATAGGIO = 700;
 
 export interface ModificheArticolo {
+  descrizione?: string;
   fornitore?: string;
   lotto_minimo?: number;
   lotto_nota?: string;
