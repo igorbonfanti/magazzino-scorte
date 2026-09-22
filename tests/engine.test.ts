@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import attesiRaw from './scorte_attesi.json';
+// Il motore si verifica contro dati CONGELATI, non contro il seed vivo.
+// La fixture e' il seed dell'elaborazione di settembre 2026, con le sue 1.590
+// righe attese: cosi' questi test restano una verifica indipendente del motore
+// anche quando i consumi vengono rielaborati. Se puntassero al seed dell'app,
+// a ogni rigenerazione diventerebbero rossi senza che il motore sia cambiato,
+// e riallinearli li trasformerebbe in una verifica di se stessi.
+import fixtureRaw from './fixture_motore.json';
 import { calcolaParametri, valutaGiacenza } from '../src/engine';
-import { articoliDaSeed, seed, statisticheDaSeed, tempiDaSeed } from '../src/seed';
+import { articoliDaSeed, statisticheDaSeed, tempiDaSeed } from '../src/seed';
+import type { SeedFile } from '../src/seed';
 import type { Sede } from '../src/types';
 
 interface RigaAttesa {
@@ -41,11 +49,12 @@ interface CasoParametri {
 }
 
 const attesi = attesiRaw as unknown as RigaAttesa[];
-const tempi = tempiDaSeed();
-const articoli = articoliDaSeed();
+const seed = fixtureRaw as unknown as SeedFile;
+const tempi = tempiDaSeed(seed);
+const articoli = articoliDaSeed(seed);
 const statistiche: Record<Sede, ReturnType<typeof statisticheDaSeed>> = {
-  ferraris: statisticheDaSeed('ferraris'),
-  spezia: statisticheDaSeed('spezia'),
+  ferraris: statisticheDaSeed('ferraris', seed),
+  spezia: statisticheDaSeed('spezia', seed),
 };
 
 function parametriDi(sede: Sede, codice: string) {

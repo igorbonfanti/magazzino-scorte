@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { contaColli } from '../src/lib/confezioni';
 import { calcolaParametri, valutaGiacenza } from '../src/engine';
-import { articoliDaSeed, seed, statisticheDaSeed, tempiDaSeed } from '../src/seed';
+import { articoliDaSeed, statisticheDaSeed, tempiDaSeed } from '../src/seed';
+import type { SeedFile } from '../src/seed';
+// Il motore si verifica contro dati CONGELATI, non contro il seed vivo.
+// La fixture e' il seed dell'elaborazione di settembre 2026, con le sue 1.590
+// righe attese: cosi' questi test restano una verifica indipendente del motore
+// anche quando i consumi vengono rielaborati. Se puntassero al seed dell'app,
+// a ogni rigenerazione diventerebbero rossi senza che il motore sia cambiato,
+// e riallinearli li trasformerebbe in una verifica di se stessi.
+import fixtureRaw from './fixture_motore.json';
 import type { Sede } from '../src/types';
 
 describe('da quantità a colli', () => {
@@ -35,9 +43,10 @@ describe('da quantità a colli', () => {
   });
 
   it('i colli sono sempre un numero intero: la quantità è un multiplo del lotto', () => {
-    const tempi = tempiDaSeed();
-    const articoli = articoliDaSeed();
-    const statistiche = { ferraris: statisticheDaSeed('ferraris'), spezia: statisticheDaSeed('spezia') };
+    const seed = fixtureRaw as unknown as SeedFile;
+    const tempi = tempiDaSeed(seed);
+    const articoli = articoliDaSeed(seed);
+    const statistiche = { ferraris: statisticheDaSeed('ferraris', seed), spezia: statisticheDaSeed('spezia', seed) };
     const casi = seed.test_rilevazione as unknown as { sede: Sede; codice: string; giacenza: number }[];
 
     for (const caso of casi) {
@@ -53,9 +62,10 @@ describe('da quantità a colli', () => {
   });
 
   it('le 12 righe dell’ordine di Ferraris in colli', () => {
-    const tempi = tempiDaSeed();
-    const articoli = articoliDaSeed();
-    const stat = statisticheDaSeed('ferraris');
+    const seed = fixtureRaw as unknown as SeedFile;
+    const tempi = tempiDaSeed(seed);
+    const articoli = articoliDaSeed(seed);
+    const stat = statisticheDaSeed('ferraris', seed);
     const casi = seed.test_rilevazione as unknown as { sede: Sede; codice: string; giacenza: number }[];
     const giacenze: Record<string, number> = {};
     for (const c of casi) if (c.sede === 'ferraris') giacenze[c.codice] = c.giacenza;

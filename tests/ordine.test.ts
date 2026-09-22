@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { calcolaParametri, valutaGiacenza } from '../src/engine';
-import { articoliDaSeed, seed, statisticheDaSeed, tempiDaSeed } from '../src/seed';
+import { articoliDaSeed, statisticheDaSeed, tempiDaSeed } from '../src/seed';
+import type { SeedFile } from '../src/seed';
+// Il motore si verifica contro dati CONGELATI, non contro il seed vivo.
+// La fixture e' il seed dell'elaborazione di settembre 2026, con le sue 1.590
+// righe attese: cosi' questi test restano una verifica indipendente del motore
+// anche quando i consumi vengono rielaborati. Se puntassero al seed dell'app,
+// a ogni rigenerazione diventerebbero rossi senza che il motore sia cambiato,
+// e riallinearli li trasformerebbe in una verifica di se stessi.
+import fixtureRaw from './fixture_motore.json';
 import { formattaCent, sommaCent } from '../src/money';
 import type { Sede } from '../src/types';
 
@@ -11,9 +19,10 @@ interface CasoRilevazione {
   atteso: { stato: 'ORDINA' | 'ok'; da_ordinare: number; giorni_residui: number | null };
 }
 
-const tempi = tempiDaSeed();
-const articoli = articoliDaSeed();
-const statistiche = { ferraris: statisticheDaSeed('ferraris'), spezia: statisticheDaSeed('spezia') };
+const seed = fixtureRaw as unknown as SeedFile;
+const tempi = tempiDaSeed(seed);
+const articoli = articoliDaSeed(seed);
+const statistiche = { ferraris: statisticheDaSeed('ferraris', seed), spezia: statisticheDaSeed('spezia', seed) };
 const casi = seed.test_rilevazione as unknown as CasoRilevazione[];
 
 /** L'ordine del giorno di una sede, dalle giacenze contate. */

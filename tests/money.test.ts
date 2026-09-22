@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { euroACent, formattaCent, formattaDecimale, formattaEuro, formattaIntero, moltiplicaCent, sommaCent } from '../src/money';
 import { articoliDaSeed, statisticheDaSeed, tempiDaSeed } from '../src/seed';
+import type { SeedFile } from '../src/seed';
+// Il motore si verifica contro dati CONGELATI, non contro il seed vivo.
+// La fixture e' il seed dell'elaborazione di settembre 2026, con le sue 1.590
+// righe attese: cosi' questi test restano una verifica indipendente del motore
+// anche quando i consumi vengono rielaborati. Se puntassero al seed dell'app,
+// a ogni rigenerazione diventerebbero rossi senza che il motore sia cambiato,
+// e riallinearli li trasformerebbe in una verifica di se stessi.
+import fixtureRaw from './fixture_motore.json';
 import { calcolaParametri } from '../src/engine';
 
 describe('importi in centesimi interi', () => {
@@ -29,11 +37,12 @@ describe('importi in centesimi interi', () => {
 });
 
 describe('totali di scorta media per sede', () => {
-  const tempi = tempiDaSeed();
-  const articoli = articoliDaSeed();
+  const seed = fixtureRaw as unknown as SeedFile;
+  const tempi = tempiDaSeed(seed);
+  const articoli = articoliDaSeed(seed);
 
   function totaleCent(sede: 'ferraris' | 'spezia'): number {
-    const stat = statisticheDaSeed(sede);
+    const stat = statisticheDaSeed(sede, seed);
     return sommaCent(Object.values(stat).map((s) => calcolaParametri(s, articoli[s.codice], tempi).valoreMedioCent));
   }
 

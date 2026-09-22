@@ -50,15 +50,24 @@ export const NOMI_SEDI: Record<Sede, string> = {
 
 export const SEDI: Sede[] = ['ferraris', 'spezia'];
 
-export function tempiDaSeed(): TempiMap {
+/**
+ * Le tre funzioni accettano un seed diverso da quello dell'app.
+ *
+ * Serve ai test: il motore va verificato contro dati CONGELATI, non contro il
+ * seed vivo. Altrimenti a ogni rielaborazione dei consumi i test del motore si
+ * tingono di rosso senza che il motore sia cambiato, e - peggio - se si
+ * riallineassero al seed nuovo diventerebbero una verifica di se stessi.
+ * La fixture sta in tests/fixture_motore.json.
+ */
+export function tempiDaSeed(da: SeedFile = seed): TempiMap {
   const out: TempiMap = {};
-  for (const t of seed.tempi_consegna) out[t.fornitore] = t.giorni;
+  for (const t of da.tempi_consegna) out[t.fornitore] = t.giorni;
   return out;
 }
 
-export function articoliDaSeed(): Record<string, Articolo> {
+export function articoliDaSeed(da: SeedFile = seed): Record<string, Articolo> {
   const out: Record<string, Articolo> = {};
-  for (const a of seed.articoli) {
+  for (const a of da.articoli) {
     // contando, di norma un collo vale un lotto minimo: dove non torna si
     // corregge a mano in "Articoli e lotti"
     out[a.codice] = { ...a, tipologia: tipologiaPredefinita(a), pezzi_per_collo: a.lotto_minimo };
@@ -66,9 +75,9 @@ export function articoliDaSeed(): Record<string, Articolo> {
   return out;
 }
 
-export function statisticheDaSeed(sede: Sede): Record<string, Statistica> {
+export function statisticheDaSeed(sede: Sede, da: SeedFile = seed): Record<string, Statistica> {
   const out: Record<string, Statistica> = {};
-  for (const [codice, s] of Object.entries(seed.sedi[sede].articoli)) {
+  for (const [codice, s] of Object.entries(da.sedi[sede].articoli)) {
     out[codice] = {
       sede,
       codice,

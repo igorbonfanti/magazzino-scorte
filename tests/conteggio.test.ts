@@ -7,9 +7,13 @@ import {
   totaleContato,
 } from '../src/lib/conteggio';
 import { descriviCollo } from '../src/lib/confezioni';
-import { articoliDaSeed, seed } from '../src/seed';
+import { articoliDaSeed } from '../src/seed';
+import type { SeedFile } from '../src/seed';
+// Dati congelati: vedi la nota in engine.test.ts.
+import fixtureRaw from './fixture_motore.json';
+const seed = fixtureRaw as unknown as SeedFile;
 
-const articoli = articoliDaSeed();
+const articoli = articoliDaSeed(seed);
 
 describe('come si legge la nota del lotto', () => {
   it('riconosce il contenitore e cosa contiene', () => {
