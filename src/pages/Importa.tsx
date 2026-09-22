@@ -24,7 +24,7 @@ interface Conteggi {
   sorvegliati: number;
   /** documenti rimasti da un'importazione precedente e non piu' nel file */
   residuiArticoli: string[];
-  residuiStatistiche: string[];
+  residuiStatistiche: { sede: Sede; codice: string }[];
 }
 
 /**
@@ -142,10 +142,13 @@ export default function Importa() {
         const codice = (d.data() as { codice: string }).codice;
         if (!articoli[codice]) residuiArticoli.push(codice);
       });
-      const residuiStatistiche: string[] = [];
+      // Sede e codice restano due campi: un codice puo' contenere uno spazio
+      // ("TRAB B"), quindi incollarli in una stringa e poi risepararli li'
+      // romperebbe proprio quello.
+      const residuiStatistiche: { sede: Sede; codice: string }[] = [];
       statSnap.forEach((d) => {
         const r = d.data() as { sede: Sede; codice: string };
-        if (!seed.sedi[r.sede]?.articoli[r.codice]) residuiStatistiche.push(`${r.sede} ${r.codice}`);
+        if (!seed.sedi[r.sede]?.articoli[r.codice]) residuiStatistiche.push({ sede: r.sede, codice: r.codice });
       });
 
       setEsito({
@@ -156,7 +159,9 @@ export default function Importa() {
         spezia,
         sorvegliati: sorvegliatiFinali.length,
         residuiArticoli: residuiArticoli.sort(),
-        residuiStatistiche: residuiStatistiche.sort(),
+        residuiStatistiche: residuiStatistiche.sort(
+          (a, b) => a.sede.localeCompare(b.sede) || a.codice.localeCompare(b.codice),
+        ),
       });
       setAvanzamento('');
       await s.ricarica();
@@ -184,8 +189,7 @@ export default function Importa() {
       for (const codice of esito.residuiArticoli) {
         await deleteDoc(doc(db, COLL.articoli, idCodice(codice)));
       }
-      for (const riga of esito.residuiStatistiche) {
-        const [sede, codice] = riga.split(' ');
+      for (const { sede, codice } of esito.residuiStatistiche) {
         await deleteDoc(doc(db, COLL.statistiche, idStatistica(sede, codice)));
       }
       setEsito({ ...esito, residuiArticoli: [], residuiStatistiche: [] });
@@ -265,7 +269,8 @@ export default function Importa() {
           <p className="nota">
             Articoli: {esito.residuiArticoli.join(', ') || '—'}
             <br />
-            Righe di consumo: {esito.residuiStatistiche.join(', ') || '—'}
+            Righe di consumo:{' '}
+            {esito.residuiStatistiche.map((r) => `${NOMI_SEDI[r.sede]} ${r.codice}`).join(', ') || '—'}
           </p>
           <button className="bottone" onClick={togliResidui} disabled={pulendo}>
             {pulendo ? 'Sto togliendo…' : 'Togli i residui'}
