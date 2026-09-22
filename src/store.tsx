@@ -17,6 +17,8 @@ import { calcolaParametri } from './engine';
 import type { Parametri } from './engine';
 import { totaleContato } from './lib/conteggio';
 import { COLL, DOC_PARAMETRI, db, idCodice, idStatistica } from './lib/firebase';
+import { seed } from './seed';
+import { calcolaForzature } from './lib/sorvegliati';
 import { useAccesso } from './lib/auth';
 import type { Articolo, DettaglioConteggio, Rilevazione, Sede, Statistica, TempiMap, Utente } from './types';
 
@@ -55,6 +57,9 @@ export interface ConfigScorte {
   elenco_sorvegliato: string[];
   esclusi: string[];
   aggiornato_il: string;
+  /** codici messi a mano dentro o fuori l'elenco, rispetto al file di partenza */
+  forzati_dentro?: string[];
+  forzati_fuori?: string[];
 }
 
 interface Base {
@@ -321,9 +326,22 @@ export function ProviderScorte({ children }: { children: ReactNode }) {
     }
 
     function aggiornaConfig(elenco: string[]) {
+      // Oltre all'elenco si registra il DELTA rispetto a quello del file di
+      // partenza: quali codici sono stati aggiunti a mano e quali tolti.
+      // Senza, la prossima importazione riscriverebbe l'elenco col suo e le
+      // scelte fatte qui sparirebbero senza lasciare traccia.
+      const { dentro: forzati_dentro, fuori: forzati_fuori } =
+        calcolaForzature(seed.elenco_sorvegliato, elenco);
       aggiornaBase(
-        (b) => ({ ...b, config: { ...b.config, elenco_sorvegliato: elenco } }),
-        () => updateDoc(doc(db, COLL.config, DOC_PARAMETRI), { elenco_sorvegliato: elenco }),
+        (b) => ({
+          ...b,
+          config: { ...b.config, elenco_sorvegliato: elenco, forzati_dentro, forzati_fuori },
+        }),
+        () => updateDoc(doc(db, COLL.config, DOC_PARAMETRI), {
+          elenco_sorvegliato: elenco,
+          forzati_dentro,
+          forzati_fuori,
+        }),
       );
     }
 

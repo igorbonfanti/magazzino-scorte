@@ -1,9 +1,16 @@
 import { useState } from 'react';
-import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { COLL, DOC_PARAMETRI, db, idCodice, idStatistica } from '../lib/firebase';
 import { formattaIntero } from '../money';
 import { NOMI_SEDI, SEDI, articoliDaSeed, seed, statisticheDaSeed } from '../seed';
+import type { Sede } from '../types';
+import { applicaForzature } from '../lib/sorvegliati';
 import { useScorte } from '../store';
+
+/** Quante righe sede-articolo porta il file di partenza. */
+function righeSeed(sede: Sede): number {
+  return Object.keys(seed.sedi[sede].articoli).length;
+}
 
 /** Firestore accetta al massimo 500 operazioni per blocco. */
 const PER_BLOCCO = 500;
@@ -15,6 +22,9 @@ interface Conteggi {
   ferraris: number;
   spezia: number;
   sorvegliati: number;
+  /** documenti rimasti da un'importazione precedente e non piu' nel file */
+  residuiArticoli: string[];
+  residuiStatistiche: string[];
 }
 
 /**
@@ -30,6 +40,7 @@ export default function Importa() {
   const [avanzamento, setAvanzamento] = useState('');
   const [esito, setEsito] = useState<Conteggi | null>(null);
   const [errore, setErrore] = useState('');
+  const [pulendo, setPulendo] = useState(false);
 
   const amministratore = s.profilo?.ruolo === 'admin';
 
@@ -43,12 +54,33 @@ export default function Importa() {
       // 1. parametri generali
       setAvanzamento('Parametri…');
       const adesso = new Date().toISOString();
+
+      // Le scelte fatte a mano dalla pagina "Elenco sorvegliato" non si
+      // buttano: si rileggono e si riapplicano sopra l'elenco nuovo. Prima
+      // l'importazione le cancellava, e chi le aveva fatte se ne accorgeva
+      // solo non trovando piu' un articolo nel giro di conteggio.
+      const configVecchia = await getDoc(doc(db, COLL.config, DOC_PARAMETRI));
+      const precedente = configVecchia.exists()
+        ? (configVecchia.data() as { forzati_dentro?: string[]; forzati_fuori?: string[] })
+        : {};
+      const forzature = {
+        dentro: precedente.forzati_dentro ?? [],
+        fuori: precedente.forzati_fuori ?? [],
+      };
+      const sorvegliatiFinali = applicaForzature(
+        seed.elenco_sorvegliato,
+        forzature,
+        (c) => articoli[c] !== undefined,
+      );
+
       const blocco0 = writeBatch(db);
       blocco0.set(doc(db, COLL.config, DOC_PARAMETRI), {
         lead_time_base: seed.meta.lead_time_base,
         fornitore_default: seed.meta.fornitore_default,
         periodo_consumi: seed.meta.periodo_consumi,
-        elenco_sorvegliato: seed.elenco_sorvegliato,
+        elenco_sorvegliato: sorvegliatiFinali,
+        forzati_dentro: forzature.dentro,
+        forzati_fuori: forzature.fuori,
         esclusi: seed.esclusi,
         aggiornato_il: adesso,
       });
@@ -101,13 +133,30 @@ export default function Importa() {
         if (sede === 'spezia') spezia++;
       });
 
+      // Cosa c'e' su Firestore e non e' piu' nel file: l'importazione scrive
+      // e riscrive, non cancella. Sono articoli usciti dal listino o passati
+      // fra i dismessi, che altrimenti restano per sempre e si ritrovano
+      // cercando in "Articoli e lotti".
+      const residuiArticoli: string[] = [];
+      articoliSnap.forEach((d) => {
+        const codice = (d.data() as { codice: string }).codice;
+        if (!articoli[codice]) residuiArticoli.push(codice);
+      });
+      const residuiStatistiche: string[] = [];
+      statSnap.forEach((d) => {
+        const r = d.data() as { sede: Sede; codice: string };
+        if (!seed.sedi[r.sede]?.articoli[r.codice]) residuiStatistiche.push(`${r.sede} ${r.codice}`);
+      });
+
       setEsito({
         tempi: tempiSnap.size,
         articoli: articoliSnap.size,
         statistiche: statSnap.size,
         ferraris,
         spezia,
-        sorvegliati: seed.elenco_sorvegliato.length,
+        sorvegliati: sorvegliatiFinali.length,
+        residuiArticoli: residuiArticoli.sort(),
+        residuiStatistiche: residuiStatistiche.sort(),
       });
       setAvanzamento('');
       await s.ricarica();
@@ -116,6 +165,35 @@ export default function Importa() {
       setAvanzamento('');
     } finally {
       setInCorso(false);
+    }
+  }
+
+  /**
+   * Toglie i documenti rimasti da un'importazione precedente.
+   *
+   * Sta in un bottone suo e non dentro l'importazione: cancellare e'
+   * l'unica operazione che non si puo' rifare al contrario, e chi la
+   * lancia deve prima aver visto l'elenco di cosa sparisce. Le rilevazioni
+   * non vengono sfiorate.
+   */
+  async function togliResidui() {
+    if (!esito) return;
+    setPulendo(true);
+    setErrore('');
+    try {
+      for (const codice of esito.residuiArticoli) {
+        await deleteDoc(doc(db, COLL.articoli, idCodice(codice)));
+      }
+      for (const riga of esito.residuiStatistiche) {
+        const [sede, codice] = riga.split(' ');
+        await deleteDoc(doc(db, COLL.statistiche, idStatistica(sede, codice)));
+      }
+      setEsito({ ...esito, residuiArticoli: [], residuiStatistiche: [] });
+      await s.ricarica();
+    } catch (e) {
+      setErrore((e as Error)?.message ?? 'Non sono riuscito a togliere i residui.');
+    } finally {
+      setPulendo(false);
     }
   }
 
@@ -161,14 +239,39 @@ export default function Importa() {
             </tr>
           </thead>
           <tbody>
-            <Riga cosa="Tempi di consegna" trovati={esito.tempi} attesi={21} />
-            <Riga cosa="Articoli" trovati={esito.articoli} attesi={1063} />
-            <Riga cosa="Statistiche" trovati={esito.statistiche} attesi={1590} />
-            <Riga cosa="di cui Ferraris" trovati={esito.ferraris} attesi={920} />
-            <Riga cosa="di cui Spezia" trovati={esito.spezia} attesi={670} />
-            <Riga cosa="Elenco sorvegliato" trovati={esito.sorvegliati} attesi={75} />
+            <Riga cosa="Tempi di consegna" trovati={esito.tempi} attesi={seed.tempi_consegna.length} />
+            <Riga cosa="Articoli" trovati={esito.articoli} attesi={seed.articoli.length} />
+            <Riga
+              cosa="Statistiche"
+              trovati={esito.statistiche}
+              attesi={righeSeed('ferraris') + righeSeed('spezia')}
+            />
+            <Riga cosa="di cui Ferraris" trovati={esito.ferraris} attesi={righeSeed('ferraris')} />
+            <Riga cosa="di cui Spezia" trovati={esito.spezia} attesi={righeSeed('spezia')} />
+            <Riga cosa="Elenco sorvegliato" trovati={esito.sorvegliati} attesi={esito.sorvegliati} />
           </tbody>
         </table>
+      )}
+
+      {esito && (esito.residuiArticoli.length > 0 || esito.residuiStatistiche.length > 0) && (
+        <>
+          <h3 style={{ marginTop: 24 }}>Rimasti da prima</h3>
+          <p>
+            Su Firestore ci sono {formattaIntero(esito.residuiArticoli.length)} articoli e{' '}
+            {formattaIntero(esito.residuiStatistiche.length)} righe di consumo che il file di partenza non contiene
+            piu&rsquo;. Sono codici usciti dal listino o passati fra i dismessi: l&rsquo;importazione scrive e
+            riscrive, non cancella, quindi restano finche&rsquo; non si tolgono a mano.
+          </p>
+          <p className="nota">
+            Articoli: {esito.residuiArticoli.join(', ') || '—'}
+            <br />
+            Righe di consumo: {esito.residuiStatistiche.join(', ') || '—'}
+          </p>
+          <button className="bottone" onClick={togliResidui} disabled={pulendo}>
+            {pulendo ? 'Sto togliendo…' : 'Togli i residui'}
+          </button>
+          <p className="nota">Le rilevazioni non vengono toccate.</p>
+        </>
       )}
     </section>
   );

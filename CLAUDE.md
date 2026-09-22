@@ -90,24 +90,32 @@ i contenitori PVC, che risultavano immobili da otto mesi.
 
 ---
 
-## Un difetto noto, non ancora corretto
+## Le forzature sull'elenco sorvegliato
 
-`src/pages/Importa.tsx` riscrive `elenco_sorvegliato` con quello del seed:
+Quando si aggiunge o si toglie un articolo dalla pagina **Elenco sorvegliato**,
+oltre all'elenco viene registrato il **delta rispetto al file di partenza**, in
+`forzati_dentro` e `forzati_fuori` dentro il documento dei parametri. Alla
+prossima importazione quel delta viene riapplicato sopra l'elenco nuovo.
 
-```ts
-blocco0.set(doc(db, COLL.config, DOC_PARAMETRI), {
-  elenco_sorvegliato: seed.elenco_sorvegliato,   // <- sovrascrive
-  esclusi: seed.esclusi,
-});
-```
+La logica sta in `src/lib/sorvegliati.ts`, è pura e ha i suoi test
+(`tests/sorvegliati.test.ts`). **Non salvare l'elenco finale e basta**: così un
+articolo che intanto è entrato da solo nella selezione automatica non resta
+marcato come forzatura, e uno che ne è uscito non ci rientra di straforo.
 
-**Ogni reimport cancella le aggiunte e le rimozioni fatte a mano** dalla pagina
-Sorvegliati. L'app già sa quali sono — `Sorvegliati.tsx` calcola `inPiu` e
-`tolti` confrontando col seed — ma l'import non le rispetta.
+Prima non era così: l'importazione riscriveva l'elenco col suo e le scelte
+fatte a mano sparivano senza lasciare traccia. Corretto il 22/09/2026.
 
-Va sistemato: l'import deve leggere le forzature esistenti e riapplicarle sopra
-l'elenco nuovo. Non è stato fatto perché Igor ha preferito tenere separata la
-preparazione dei dati dalla modifica dell'app.
+## L'importazione scrive, non cancella
+
+Ogni documento ha un ID costruito dal codice, quindi reimportare riscrive gli
+stessi documenti invece di duplicarli. Ma **i codici usciti dal listino
+restano**: al primo import di settembre 2026 erano rimasti `PP10CO` e `TRA`
+(passati fra i dismessi), più le righe di consumo di `COMO` e `ORMO`.
+
+Dopo l'importazione la pagina elenca i residui e offre un bottone per
+toglierli. È un bottone separato apposta: cancellare è l'unica operazione che
+non si rifà al contrario, e chi la lancia deve prima aver visto cosa sparisce.
+Le rilevazioni non vengono mai toccate.
 
 ---
 
