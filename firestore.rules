@@ -35,6 +35,12 @@ rules_version = '2';
 // Per clienti, preventivi, ordini, pratiche e assegni restano estranei
 // esattamente come prima, cioe' bloccati dal catch-all.
 // ---------------------------------------------------------------------------
+// SETTEMBRE 2026 — APP CARTONGESSO
+//
+// Entra l'app cartongesso (distinte e preventivi di pareti e controsoffitti,
+// numerati PCG-YYYY-NNNN), con le collection cgp_*. Nessun utente nuovo: le
+// usa chi e' in autorizzato(); i magazzinieri non vi accedono.
+// ---------------------------------------------------------------------------
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -266,6 +272,21 @@ service cloud.firestore {
                         && request.auth.uid == uid
                         && request.resource.data.ruolo == 'operatore');
       allow update, delete: if autorizzato();
+    }
+
+    // =======================================================================
+    // APP CARTONGESSO (distinte e preventivi PCG-YYYY-NNNN)
+    // =======================================================================
+    // Tutte le collection cgp_*: cgp_mapping (voce della distinta -> codice
+    // di listino), cgp_preventivi, cgp_contatori, cgp_impostazioni.
+    // Una regola sola per il prefisso, come chiede la specifica dell'app: il
+    // nome della collection deve cominciare per cgp_, quindi nient'altro del
+    // progetto passa di qui. Solo agli autorizzati, come preventivi e clienti
+    // del gestionale. Si cancella solo una mappatura sbagliata: preventivi e
+    // contatori no.
+    match /{collezione}/{documento} {
+      allow read, create, update: if collezione.matches('cgp_.*') && autorizzato();
+      allow delete: if collezione == 'cgp_mapping' && autorizzato();
     }
 
     // =======================================================================
