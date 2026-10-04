@@ -1,0 +1,43 @@
+# Pubblica l'app su Firebase Hosting a ogni push su main.
+#
+# Stessi passi di deploy.yml (test prima del build), ma il build gira con
+# --base /: su Firebase l'app sta alla radice del dominio, non sotto
+# /magazzino-scorte/ come su GitHub Pages. L'opzione da riga di comando
+# vince su vite.config.ts, che resta com'e' finche' Pages e' attivo.
+#
+# Il sito di destinazione sta in firebase.json ("site"). Il segreto
+# FIREBASE_SERVICE_ACCOUNT (chiave JSON di un account di servizio del progetto
+# magazzino-edile-pos) va creato una volta a mano in
+# Settings > Secrets and variables > Actions: finche' manca, questo job fallisce
+# senza toccare nulla.
+name: Pubblica su Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-hosting
+  cancel-in-progress: true
+
+jobs:
+  pubblica:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build -- --base /
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: magazzino-edile-pos
